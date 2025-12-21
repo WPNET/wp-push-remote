@@ -106,14 +106,16 @@ show_help() {
     echo -e "    ${COLOR_YELLOW}-e, --exclude LIST${COLOR_RESET}     Space-delimited list of paths to exclude (quote the list)"
     echo "                                Example: -e \"wp-content/plugins wp-content/themes/mytheme myfile.js\""
     echo ""
-    echo -e "    ${COLOR_BOLD_CYAN}Option Flags (1=YES, 0=NO):${COLOR_RESET}"
-    echo -e "    ${COLOR_YELLOW}--search-replace VALUE${COLOR_RESET}     Run wp search-replace (default: 1)"
-    echo -e "    ${COLOR_YELLOW}--files-only VALUE${COLOR_RESET}         Skip database operations (default: 0)"
-    echo -e "    ${COLOR_YELLOW}--no-db-import VALUE${COLOR_RESET}       Don't import database on remote (default: 0)"
-    echo -e "    ${COLOR_YELLOW}--install-plugins VALUE${COLOR_RESET}    Install plugins on remote (default: 0)"
-    echo -e "    ${COLOR_YELLOW}--run-remote-commands VALUE${COLOR_RESET} Run custom commands on remote (default: 0)"
-    echo -e "    ${COLOR_YELLOW}--exclude-wpconfig VALUE${COLOR_RESET}   Exclude wp-config.php (default: 1)"
-    echo -e "    ${COLOR_YELLOW}--disable-wp-debug VALUE${COLOR_RESET}   Disable WP_DEBUG temporarily (default: 0)"
+    echo -e "    ${COLOR_BOLD_CYAN}Option Flags:${COLOR_RESET}"
+    echo -e "    ${COLOR_YELLOW}--search-replace${COLOR_RESET}         Run wp search-replace (default: yes)"
+    echo -e "    ${COLOR_YELLOW}--no-search-replace${COLOR_RESET}      Skip wp search-replace"
+    echo -e "    ${COLOR_YELLOW}--files-only${COLOR_RESET}             Skip database operations (default: no)"
+    echo -e "    ${COLOR_YELLOW}--no-db-import${COLOR_RESET}           Don't import database on remote (default: no)"
+    echo -e "    ${COLOR_YELLOW}--install-plugins${COLOR_RESET}        Install plugins on remote (default: no)"
+    echo -e "    ${COLOR_YELLOW}--run-remote-commands${COLOR_RESET}    Run custom commands on remote (default: no)"
+    echo -e "    ${COLOR_YELLOW}--exclude-wpconfig${COLOR_RESET}       Exclude wp-config.php (default: yes)"
+    echo -e "    ${COLOR_YELLOW}--no-exclude-wpconfig${COLOR_RESET}    Include wp-config.php in sync"
+    echo -e "    ${COLOR_YELLOW}--disable-wp-debug${COLOR_RESET}       Disable WP_DEBUG temporarily (default: no)"
     echo ""
     echo -e "${COLOR_BOLD_GREEN}EXAMPLES:${COLOR_RESET}"
     echo "    # Run with interactive prompts for configuration"
@@ -123,10 +125,10 @@ show_help() {
     echo "    $0 -u -e \"uploads .maintenance .git\""
     echo ""
     echo "    # Files only, no database operations"
-    echo "    $0 --files-only 1"
+    echo "    $0 --files-only"
     echo ""
-    echo "    # Skip search-replace operation"
-    echo "    $0 --search-replace 0"
+    echo "    # Disable search-replace operation"
+    echo "    $0 --no-search-replace"
     echo ""
     echo -e "${COLOR_BOLD_GREEN}REQUIREMENTS:${COLOR_RESET}"
     echo "    - WP-CLI installed on both source and remote servers"
@@ -420,7 +422,7 @@ function prompt_for_config() {
 ####################################################################################
 
 # Parse long options
-TEMP=$(getopt -o huipe: --long help,unattended,interactive,prompt-config,exclude:,search-replace:,files-only:,no-db-import:,install-plugins:,run-remote-commands:,exclude-wpconfig:,disable-wp-debug: -n "$0" -- "$@" 2>/dev/null)
+TEMP=$(getopt -o huipe: --long help,unattended,interactive,prompt-config,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug -n "$0" -- "$@" 2>/dev/null)
 
 # Check for getopt errors
 if [[ $? -ne 0 ]]; then
@@ -453,60 +455,40 @@ if [[ $? -ne 0 ]]; then
                 shift 2
                 ;;
             --search-replace)
-                if [[ -z "$2" ]]; then
-                    print_error "--search-replace requires an argument"
-                    exit 1
-                fi
-                do_search_replace="$2"
-                shift 2
+                do_search_replace=1
+                shift
+                ;;
+            --no-search-replace)
+                do_search_replace=0
+                shift
                 ;;
             --files-only)
-                if [[ -z "$2" ]]; then
-                    print_error "--files-only requires an argument"
-                    exit 1
-                fi
-                files_only="$2"
-                shift 2
+                files_only=1
+                shift
                 ;;
             --no-db-import)
-                if [[ -z "$2" ]]; then
-                    print_error "--no-db-import requires an argument"
-                    exit 1
-                fi
-                no_db_import="$2"
-                shift 2
+                no_db_import=1
+                shift
                 ;;
             --install-plugins)
-                if [[ -z "$2" ]]; then
-                    print_error "--install-plugins requires an argument"
-                    exit 1
-                fi
-                install_plugins="$2"
-                shift 2
+                install_plugins=1
+                shift
                 ;;
             --run-remote-commands)
-                if [[ -z "$2" ]]; then
-                    print_error "--run-remote-commands requires an argument"
-                    exit 1
-                fi
-                run_remote_commands="$2"
-                shift 2
+                run_remote_commands=1
+                shift
                 ;;
             --exclude-wpconfig)
-                if [[ -z "$2" ]]; then
-                    print_error "--exclude-wpconfig requires an argument"
-                    exit 1
-                fi
-                exclude_wpconfig="$2"
-                shift 2
+                exclude_wpconfig=1
+                shift
+                ;;
+            --no-exclude-wpconfig)
+                exclude_wpconfig=0
+                shift
                 ;;
             --disable-wp-debug)
-                if [[ -z "$2" ]]; then
-                    print_error "--disable-wp-debug requires an argument"
-                    exit 1
-                fi
-                disable_wp_debug="$2"
-                shift 2
+                disable_wp_debug=1
+                shift
                 ;;
             *)
                 print_error "Unknown option: $1"
@@ -542,32 +524,40 @@ else
                 shift 2
                 ;;
             --search-replace)
-                do_search_replace="$2"
-                shift 2
+                do_search_replace=1
+                shift
+                ;;
+            --no-search-replace)
+                do_search_replace=0
+                shift
                 ;;
             --files-only)
-                files_only="$2"
-                shift 2
+                files_only=1
+                shift
                 ;;
             --no-db-import)
-                no_db_import="$2"
-                shift 2
+                no_db_import=1
+                shift
                 ;;
             --install-plugins)
-                install_plugins="$2"
-                shift 2
+                install_plugins=1
+                shift
                 ;;
             --run-remote-commands)
-                run_remote_commands="$2"
-                shift 2
+                run_remote_commands=1
+                shift
                 ;;
             --exclude-wpconfig)
-                exclude_wpconfig="$2"
-                shift 2
+                exclude_wpconfig=1
+                shift
+                ;;
+            --no-exclude-wpconfig)
+                exclude_wpconfig=0
+                shift
                 ;;
             --disable-wp-debug)
-                disable_wp_debug="$2"
-                shift 2
+                disable_wp_debug=1
+                shift
                 ;;
             --)
                 shift

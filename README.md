@@ -93,15 +93,17 @@ Run with interactive configuration prompts:
 
 #### Option Flags
 
-All option flags accept values `1` (YES) or `0` (NO):
+Option flags are boolean - the presence of the flag sets it to true/enabled:
 
-- `--search-replace VALUE` - Run wp search-replace on database (default: 1)
-- `--files-only VALUE` - Skip all database operations (default: 0)
-- `--no-db-import VALUE` - Don't import database on remote (default: 0)
-- `--install-plugins VALUE` - Install plugins on remote (default: 0)
-- `--run-remote-commands VALUE` - Run custom commands on remote (default: 0)
-- `--exclude-wpconfig VALUE` - Exclude wp-config.php from rsync (default: 1)
-- `--disable-wp-debug VALUE` - Temporarily disable WP_DEBUG during push (default: 0)
+- `--search-replace` - Run wp search-replace on database (default: yes)
+- `--no-search-replace` - Skip wp search-replace
+- `--files-only` - Skip all database operations (default: no)
+- `--no-db-import` - Don't import database on remote (default: no)
+- `--install-plugins` - Install plugins on remote (default: no)
+- `--run-remote-commands` - Run custom commands on remote (default: no)
+- `--exclude-wpconfig` - Exclude wp-config.php from rsync (default: yes)
+- `--no-exclude-wpconfig` - Include wp-config.php in sync
+- `--disable-wp-debug` - Temporarily disable WP_DEBUG during push (default: no)
 
 ### Examples
 
@@ -122,17 +124,17 @@ This will prompt you for:
 
 #### Example 3: Files Only (No Database)
 ```bash
-./wp-push-remote.sh --files-only 1
+./wp-push-remote.sh --files-only
 ```
 
 #### Example 4: Skip Search-Replace
 ```bash
-./wp-push-remote.sh --search-replace 0
+./wp-push-remote.sh --no-search-replace
 ```
 
 #### Example 5: Combined Options
 ```bash
-./wp-push-remote.sh -p --disable-wp-debug 1 -e "node_modules"
+./wp-push-remote.sh -p --disable-wp-debug -e "node_modules"
 ```
 
 ## Configuration
