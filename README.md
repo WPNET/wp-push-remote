@@ -107,58 +107,73 @@ Option flags are boolean - the presence of the flag sets it to true/enabled:
 
 ### Examples
 
-#### Example 1: Interactive Setup
+#### Example 1: Interactive Setup (First Time)
 ```bash
 ./wp-push-remote.sh --prompt-config
 ```
 This will prompt you for:
-- Source server path and webroot
+- Source server path and webroot (with smart defaults like `/sites/{domain}/files`)
 - Remote server IP, user, path, and webroot
 - Database handling options (with search-replace, without, or files only)
-- Search-replace URLs and paths (if needed)
+- Search-replace URLs and paths (auto-detected from your paths)
 
-#### Example 2: Unattended Mode with Custom Exclusions
+**Configuration is automatically saved** to `~/.wp-push-remote.conf` and will be loaded on subsequent runs.
+
+#### Example 2: Run with Saved Configuration
+```bash
+./wp-push-remote.sh
+```
+Uses the saved configuration from your first setup. No need to re-enter details!
+
+#### Example 3: Unattended Mode with Custom Exclusions
 ```bash
 ./wp-push-remote.sh -u -e "uploads .maintenance"
 ```
 
-#### Example 3: Files Only (No Database)
+#### Example 4: Files Only (No Database)
 ```bash
 ./wp-push-remote.sh --files-only
 ```
 
-#### Example 4: Skip Search-Replace
+#### Example 5: Skip Search-Replace
 ```bash
 ./wp-push-remote.sh --no-search-replace
 ```
 
-#### Example 5: Combined Options
+#### Example 6: Combined Options
 ```bash
 ./wp-push-remote.sh -p --disable-wp-debug -e "node_modules"
 ```
 
 ## Configuration
 
-### Default Configuration
+### Saved Configuration
 
-The script includes default configuration values that can be edited directly in the script:
+The script automatically saves your configuration to `~/.wp-push-remote.conf` when you use `--prompt-config`. This configuration is loaded on subsequent runs, so you don't need to re-enter settings each time.
+
+### Smart Defaults
+
+- **Path structure**: Defaults to `/sites/{domain}/files` pattern
+- **URLs**: Auto-detected from paths (e.g., `/sites/example.com/` → `//example.com`)
+- **Search-replace paths**: Auto-derived from your source and remote paths
+- **Webroot**: Defaults to `files` (press Enter to accept)
+
+### Manual Configuration
+
+If you prefer to edit configuration directly, you can modify `~/.wp-push-remote.conf`:
 
 ```bash
-# SOURCE
-source_path_prefix="/sites/mysite.co.nz/"
+# WP Push Remote Configuration
+source_path_prefix="/sites/example.com/"
 source_webroot="files"
-
-# REMOTE
-remote_ip_address=""
-remote_user=""
-remote_path_prefix="/sites/mysite2.co.nz/"
+remote_ip_address="192.168.1.100"
+remote_user="production"
+remote_path_prefix="/sites/staging.example.com/"
 remote_webroot="files"
-
-# WP-CLI search-replace
-wp_search_replace_source_url='//'
-wp_search_replace_remote_url='//'
-wp_search_replace_source_path='/'
-wp_search_replace_remote_path='/'
+wp_search_replace_source_url="//example.com"
+wp_search_replace_remote_url="//staging.example.com"
+wp_search_replace_source_path="/sites/example.com/files"
+wp_search_replace_remote_path="/sites/staging.example.com/files"
 ```
 
 ### Default Exclusions

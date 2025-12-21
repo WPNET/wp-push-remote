@@ -136,12 +136,13 @@ show_help() {
     echo "    - SSH access to remote server"
     echo ""
     echo -e "${COLOR_BOLD_GREEN}CONFIGURATION:${COLOR_RESET}"
-    echo "    Edit the script to set default values for:"
-    echo "    - SOURCE: source_path_prefix, source_webroot"
-    echo "    - REMOTE: remote_ip_address, remote_user, remote_path_prefix, remote_webroot"
-    echo "    - WP-CLI search-replace URLs and paths"
+    echo "    Configuration is saved to ~/.wp-push-remote.conf after using --prompt-config"
+    echo "    and automatically loaded on subsequent runs."
     echo ""
-    echo "    Or use --prompt-config to set these interactively at runtime."
+    echo "    Default path structure: /sites/{domain}/files"
+    echo "    URLs and search-replace paths are auto-detected from your configuration."
+    echo ""
+    echo "    Use --prompt-config to configure or reconfigure settings interactively."
     echo ""
     exit 0
 }
@@ -150,24 +151,27 @@ show_help() {
 # DEFAULT CONFIGURATION - Can be overridden via --prompt-config option
 ####################################################################################
 
+# Configuration file location
+config_file="${HOME}/.wp-push-remote.conf"
+
 # SOURCE
-source_path_prefix="/sites/mysite.co.nz/" # use trailing slash
+source_path_prefix="" # use trailing slash
 source_webroot="files" # no preceding or trailing slash
 
 # REMOTE
 remote_ip_address=""
 remote_user=""
-remote_path_prefix="/sites/mysite2.co.nz/" # use trailing slash
+remote_path_prefix="" # use trailing slash
 remote_webroot="files" # no preceding or trailing slash
 plugins_to_install="" # space separated list of plugins to install on remote
 
-# WP-CLI search-replace
+# WP-CLI search-replace (will be auto-derived from paths if not set)
 # rewrites for URLs
-wp_search_replace_source_url='//'
-wp_search_replace_remote_url='//'
+wp_search_replace_source_url=''
+wp_search_replace_remote_url=''
 # rewrites for file paths
-wp_search_replace_source_path='/'
-wp_search_replace_remote_path='/'
+wp_search_replace_source_path=''
+wp_search_replace_remote_path=''
 
 # Options flags (1 = YES, 0 = NO)
 do_search_replace=1    # run 'wp search-replace' on remote, once for URLs and once for file paths
@@ -179,6 +183,53 @@ exclude_wpconfig=1     # exclude the wp-config.php file from the rsync to remote
 unattended_mode=0      # flag for unattended mode
 disable_wp_debug=0     # disable WP_DEBUG on remote for the duration of the push, then revert it back to the original state
 prompt_config=0        # flag to prompt for configuration
+
+# Load saved configuration if it exists
+load_config() {
+    if [[ -f "$config_file" ]]; then
+        print_info "Loading saved configuration from $config_file"
+        source "$config_file"
+    fi
+}
+
+# Save configuration to file
+save_config() {
+    cat > "$config_file" << EOF
+# WP Push Remote Configuration
+# Generated on $(date)
+
+source_path_prefix="$source_path_prefix"
+source_webroot="$source_webroot"
+remote_ip_address="$remote_ip_address"
+remote_user="$remote_user"
+remote_path_prefix="$remote_path_prefix"
+remote_webroot="$remote_webroot"
+wp_search_replace_source_url="$wp_search_replace_source_url"
+wp_search_replace_remote_url="$wp_search_replace_remote_url"
+wp_search_replace_source_path="$wp_search_replace_source_path"
+wp_search_replace_remote_path="$wp_search_replace_remote_path"
+EOF
+    chmod 600 "$config_file"
+    print_success "Configuration saved to $config_file"
+}
+
+# Extract domain from path (e.g., /sites/example.com/ -> example.com)
+extract_domain_from_path() {
+    local path="$1"
+    # Remove trailing slash and extract domain between /sites/ and next /
+    echo "$path" | sed -E 's#^.*/sites/([^/]+).*$#\1#'
+}
+
+# Derive URL from path (e.g., /sites/example.com/files -> //example.com)
+derive_url_from_path() {
+    local path_prefix="$1"
+    local domain=$(extract_domain_from_path "$path_prefix")
+    if [[ -n "$domain" && "$domain" != "$path_prefix" ]]; then
+        echo "//$domain"
+    else
+        echo ""
+    fi
+}
 
 # Excludes for rsync to remote (edit as required)
 excludes=(.wp-stats .maintenance wp-content/cache wp-content/uploads/wp-migrate-db /wp-content/updraft .user.ini)
@@ -321,41 +372,42 @@ function prompt_for_config() {
     print_header "CONFIGURATION SETUP"
     
     print_info "Let's configure the SOURCE and REMOTE settings."
+    print_info "Press Enter to accept defaults shown in [brackets]"
     echo ""
     
     # SOURCE configuration
     print_step "SOURCE Configuration"
-    read -p "$(echo -e "${COLOR_CYAN}Source path prefix${COLOR_RESET} (e.g., /sites/mysite.co.nz/): ")" input_source_path_prefix
-    if [[ -n "$input_source_path_prefix" ]]; then
-        source_path_prefix="$input_source_path_prefix"
-    fi
     
-    read -p "$(echo -e "${COLOR_CYAN}Source webroot${COLOR_RESET} (e.g., files or public_html): ")" input_source_webroot
-    if [[ -n "$input_source_webroot" ]]; then
-        source_webroot="$input_source_webroot"
-    fi
+    # Detect current domain from hostname or use saved value
+    local current_domain=$(hostname -f 2>/dev/null || hostname)
+    local default_source_prefix="${source_path_prefix:-/sites/${current_domain}/}"
+    local default_source_webroot="${source_webroot:-files}"
+    
+    read -p "$(echo -e "${COLOR_CYAN}Source path prefix${COLOR_RESET} [${default_source_prefix}]: ")" input_source_path_prefix
+    source_path_prefix="${input_source_path_prefix:-$default_source_prefix}"
+    
+    read -p "$(echo -e "${COLOR_CYAN}Source webroot${COLOR_RESET} [${default_source_webroot}]: ")" input_source_webroot
+    source_webroot="${input_source_webroot:-$default_source_webroot}"
     
     # REMOTE configuration
     print_step "REMOTE Configuration"
-    read -p "$(echo -e "${COLOR_CYAN}Remote IP address or hostname${COLOR_RESET}: ")" input_remote_ip
-    if [[ -n "$input_remote_ip" ]]; then
-        remote_ip_address="$input_remote_ip"
-    fi
     
-    read -p "$(echo -e "${COLOR_CYAN}Remote SSH user${COLOR_RESET}: ")" input_remote_user
-    if [[ -n "$input_remote_user" ]]; then
-        remote_user="$input_remote_user"
-    fi
+    # Extract source domain for remote default
+    local source_domain=$(extract_domain_from_path "$source_path_prefix")
+    local default_remote_prefix="${remote_path_prefix:-/sites/${source_domain}/}"
+    local default_remote_webroot="${remote_webroot:-files}"
     
-    read -p "$(echo -e "${COLOR_CYAN}Remote path prefix${COLOR_RESET} (e.g., /sites/mysite2.co.nz/): ")" input_remote_path_prefix
-    if [[ -n "$input_remote_path_prefix" ]]; then
-        remote_path_prefix="$input_remote_path_prefix"
-    fi
+    read -p "$(echo -e "${COLOR_CYAN}Remote IP address or hostname${COLOR_RESET} [${remote_ip_address}]: ")" input_remote_ip
+    remote_ip_address="${input_remote_ip:-$remote_ip_address}"
     
-    read -p "$(echo -e "${COLOR_CYAN}Remote webroot${COLOR_RESET} (e.g., files or public_html): ")" input_remote_webroot
-    if [[ -n "$input_remote_webroot" ]]; then
-        remote_webroot="$input_remote_webroot"
-    fi
+    read -p "$(echo -e "${COLOR_CYAN}Remote SSH user${COLOR_RESET} [${remote_user:-$(whoami)}]: ")" input_remote_user
+    remote_user="${input_remote_user:-${remote_user:-$(whoami)}}"
+    
+    read -p "$(echo -e "${COLOR_CYAN}Remote path prefix${COLOR_RESET} [${default_remote_prefix}]: ")" input_remote_path_prefix
+    remote_path_prefix="${input_remote_path_prefix:-$default_remote_prefix}"
+    
+    read -p "$(echo -e "${COLOR_CYAN}Remote webroot${COLOR_RESET} [${default_remote_webroot}]: ")" input_remote_webroot
+    remote_webroot="${input_remote_webroot:-$default_remote_webroot}"
     
     # Database operations
     print_step "Database Configuration"
@@ -364,7 +416,8 @@ function prompt_for_config() {
         echo "  1) Copy database and perform search-replace (URL and path rewrites)"
         echo "  2) Copy database without modifications (no search-replace)"
         echo "  3) Files only (skip database operations entirely)"
-        read -p "$(echo -e "${COLOR_GREEN}Select option [1-3]:${COLOR_RESET} ")" db_option
+        read -p "$(echo -e "${COLOR_GREEN}Select option [1-3] [1]:${COLOR_RESET} ")" db_option
+        db_option="${db_option:-1}"
         
         case $db_option in
             1)
@@ -373,27 +426,26 @@ function prompt_for_config() {
                 no_db_import=0
                 print_success "Database will be copied with search-replace"
                 
-                # Get search-replace values
+                # Auto-derive search-replace values from paths
+                local auto_source_url=$(derive_url_from_path "$source_path_prefix")
+                local auto_remote_url=$(derive_url_from_path "$remote_path_prefix")
+                local auto_source_path="${source_path_prefix}${source_webroot}"
+                local auto_remote_path="${remote_path_prefix}${remote_webroot}"
+                
                 echo -e "\n${COLOR_CYAN}Search-Replace Configuration:${COLOR_RESET}"
-                read -p "$(echo -e "${COLOR_CYAN}Source URL${COLOR_RESET} (e.g., //example.com): ")" input_source_url
-                if [[ -n "$input_source_url" ]]; then
-                    wp_search_replace_source_url="$input_source_url"
-                fi
+                print_info "Auto-detected values based on your paths. Press Enter to accept."
                 
-                read -p "$(echo -e "${COLOR_CYAN}Remote URL${COLOR_RESET} (e.g., //staging.example.com): ")" input_remote_url
-                if [[ -n "$input_remote_url" ]]; then
-                    wp_search_replace_remote_url="$input_remote_url"
-                fi
+                read -p "$(echo -e "${COLOR_CYAN}Source URL${COLOR_RESET} [${auto_source_url}]: ")" input_source_url
+                wp_search_replace_source_url="${input_source_url:-$auto_source_url}"
                 
-                read -p "$(echo -e "${COLOR_CYAN}Source file path${COLOR_RESET} (e.g., /var/www/site): ")" input_source_path
-                if [[ -n "$input_source_path" ]]; then
-                    wp_search_replace_source_path="$input_source_path"
-                fi
+                read -p "$(echo -e "${COLOR_CYAN}Remote URL${COLOR_RESET} [${auto_remote_url}]: ")" input_remote_url
+                wp_search_replace_remote_url="${input_remote_url:-$auto_remote_url}"
                 
-                read -p "$(echo -e "${COLOR_CYAN}Remote file path${COLOR_RESET} (e.g., /var/www/staging): ")" input_remote_path
-                if [[ -n "$input_remote_path" ]]; then
-                    wp_search_replace_remote_path="$input_remote_path"
-                fi
+                read -p "$(echo -e "${COLOR_CYAN}Source file path${COLOR_RESET} [${auto_source_path}]: ")" input_source_path
+                wp_search_replace_source_path="${input_source_path:-$auto_source_path}"
+                
+                read -p "$(echo -e "${COLOR_CYAN}Remote file path${COLOR_RESET} [${auto_remote_path}]: ")" input_remote_path
+                wp_search_replace_remote_path="${input_remote_path:-$auto_remote_path}"
                 break
                 ;;
             2)
@@ -415,6 +467,9 @@ function prompt_for_config() {
                 ;;
         esac
     done
+    
+    # Save configuration
+    save_config
 }
 
 ####################################################################################
@@ -582,6 +637,11 @@ clear
 # Show banner
 print_header "WP Push Remote v${script_version}"
 
+# Load saved configuration (unless prompting for new config)
+if [[ $prompt_config -eq 0 ]]; then
+    load_config
+fi
+
 # Prompt for configuration if requested
 if [[ $prompt_config -eq 1 ]]; then
     prompt_for_config
@@ -620,7 +680,7 @@ local_ip=$(hostname -I 2>/dev/null | awk '{print $1}' || hostname)
 
 print_step "START WP PUSH site FROM ${local_ip} TO ${remote_ip_address}"
 print_info "Script: 'wp-push-remote.sh' v${script_version}"
-print_info "Source URL: $( wp option get siteurl 2>/dev/null || echo 'Unable to detect' )"
+print_info "Source URL: $( wp option get siteurl --path="${source_path}" 2>/dev/null || echo 'Unable to detect' )"
 echo -e "${COLOR_CYAN}Source:${COLOR_RESET} ${current_user}@${source_path}"
 echo -e "${COLOR_CYAN}Remote:${COLOR_RESET} ${remote_user}@${remote_ip_address}:${remote_path}"
 echo -e "${COLOR_CYAN}Excludes:${COLOR_RESET} ${excludes[*]}"
@@ -711,7 +771,7 @@ if (( files_only == 0 ))
 then
     # Dump database
     print_step "EXPORTING database ..."
-    if wp db export ${source_path}/${source_db_name}; then
+    if wp db export ${source_path}/${source_db_name} --path="${source_path}"; then
         print_success "Database exported successfully"
     else
         print_error "Failed to export database"
@@ -746,24 +806,24 @@ fi
 
 if (( ${files_only} == 0 && ${no_db_import} == 0 )); then
 echo -e "${COLOR_BLUE}IMPORTING database ...${COLOR_RESET}"
-wp db import ${remote_path}/${source_db_name}
+wp db import ${remote_path}/${source_db_name} --path="${remote_path}"
 echo -e "${COLOR_BLUE}FLUSHING WP cache ...${COLOR_RESET}"
-wp cache flush --hard
+wp cache flush --hard --path="${remote_path}"
 echo -e "\n${COLOR_BLUE}DELETING imported database source file ...${COLOR_RESET}"
 rm -v ${remote_path}/${source_db_name}
 fi
 
 if (( ${do_search_replace} == 1 && ${files_only} == 0 && ${no_db_import} == 0 )); then
-if [[ ${wp_search_replace_source_url} != '//' && ${wp_search_replace_remote_url} != '//' ]]; then
+if [[ -n "${wp_search_replace_source_url}" && -n "${wp_search_replace_remote_url}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for URLs ...${COLOR_RESET}"
-wp search-replace --precise ${wp_search_replace_source_url} ${wp_search_replace_remote_url} --report-changed-only --format=table
+wp search-replace --precise ${wp_search_replace_source_url} ${wp_search_replace_remote_url} --report-changed-only --format=table --path="${remote_path}"
 fi
-if [[ ${wp_search_replace_source_path} != '/' && ${wp_search_replace_remote_path} != '/' ]]; then
+if [[ -n "${wp_search_replace_source_path}" && -n "${wp_search_replace_remote_path}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for file PATHs ...${COLOR_RESET}"
-wp search-replace --precise ${wp_search_replace_source_path} ${wp_search_replace_remote_path} --report-changed-only --format=table
+wp search-replace --precise ${wp_search_replace_source_path} ${wp_search_replace_remote_path} --report-changed-only --format=table --path="${remote_path}"
 fi
 echo -e "${COLOR_BLUE}FLUSHING WP cache ...${COLOR_RESET}"
-wp cache flush --hard
+wp cache flush --hard --path="${remote_path}"
 fi
 
 if (( ${run_remote_commands} == 1 )); then
@@ -771,13 +831,13 @@ echo -e "\n${COLOR_BLUE}EXECUTING custom commands on remote ...${COLOR_RESET}"
 # Use for running custom commands on the remote, after DB import and search-replace, for example:
 # this runs a url_replace with Elementor
 #echo -e "\n${COLOR_BLUE}Running Elementor replace_urls on remote server ...${COLOR_RESET}"
-#wp elementor replace_urls https:${wp_search_replace_source_url} https:${wp_search_replace_remote_url}
+#wp elementor replace_urls https:${wp_search_replace_source_url} https:${wp_search_replace_remote_url} --path="${remote_path}"
 fi
 
-if (( ${install_plugins} == 1 )) && [[ "${plugins_to_install}" != "" ]]; then
+if (( ${install_plugins} == 1 )) && [[ -n "${plugins_to_install}" ]]; then
 echo -e "\n${COLOR_BLUE}INSTALLING plugins on remote ...${COLOR_RESET}"
-wp plugin install ${plugins_to_install}
-wp cache flush
+wp plugin install ${plugins_to_install} --path="${remote_path}"
+wp cache flush --path="${remote_path}"
 fi
 
 if (( ${disable_wp_debug} == 1 )); then
