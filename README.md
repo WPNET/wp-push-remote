@@ -86,9 +86,9 @@ Run with interactive configuration prompts:
 
 #### Exclusions
 
-- `-e, --exclude PATH` - Add path to exclude list (can be used multiple times)
+- `-e, --exclude LIST` - Space-delimited list of paths to exclude (quote the list)
   ```bash
-  ./wp-push-remote.sh -e "uploads" -e ".git" -e ".maintenance"
+  ./wp-push-remote.sh -e "uploads .git .maintenance"
   ```
 
 #### Option Flags
@@ -117,7 +117,7 @@ This will prompt you for:
 
 #### Example 2: Unattended Mode with Custom Exclusions
 ```bash
-./wp-push-remote.sh -u -e "uploads" -e ".maintenance"
+./wp-push-remote.sh -u -e "uploads .maintenance"
 ```
 
 #### Example 3: Files Only (No Database)

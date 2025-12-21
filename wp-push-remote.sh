@@ -104,8 +104,8 @@ ${COLOR_BOLD_GREEN}OPTIONS:${COLOR_RESET}
     ${COLOR_YELLOW}-i, --interactive${COLOR_RESET}      Run in interactive mode (default)
     ${COLOR_YELLOW}-p, --prompt-config${COLOR_RESET}    Prompt for all configuration settings
     
-    ${COLOR_YELLOW}-e, --exclude PATH${COLOR_RESET}     Add path to exclude list (can be used multiple times)
-                                Example: -e "uploads" -e ".git"
+    ${COLOR_YELLOW}-e, --exclude LIST${COLOR_RESET}     Space-delimited list of paths to exclude (quote the list)
+                                Example: -e "wp-content/plugins wp-content/themes/mytheme myfile.js"
     
     ${COLOR_BOLD_CYAN}Option Flags (1=YES, 0=NO):${COLOR_RESET}
     ${COLOR_YELLOW}--search-replace VALUE${COLOR_RESET}     Run wp search-replace (default: 1)
@@ -121,7 +121,7 @@ ${COLOR_BOLD_GREEN}EXAMPLES:${COLOR_RESET}
     $0 --prompt-config
     
     # Run in unattended mode with custom exclusions
-    $0 -u -e "uploads" -e ".maintenance"
+    $0 -u -e "uploads .maintenance .git"
     
     # Files only, no database operations
     $0 --files-only 1
@@ -449,7 +449,9 @@ if [[ $? -ne 0 ]]; then
                     print_error "--exclude requires an argument"
                     exit 1
                 fi
-                excludes+=("$2")
+                # Parse space-delimited list and add to excludes array
+                read -ra exclude_items <<< "$2"
+                excludes+=("${exclude_items[@]}")
                 shift 2
                 ;;
             --search-replace)
@@ -536,7 +538,9 @@ else
                 shift
                 ;;
             -e|--exclude)
-                excludes+=("$2")
+                # Parse space-delimited list and add to excludes array
+                read -ra exclude_items <<< "$2"
+                excludes+=("${exclude_items[@]}")
                 shift 2
                 ;;
             --search-replace)
