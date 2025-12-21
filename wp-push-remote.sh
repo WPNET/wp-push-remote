@@ -426,65 +426,6 @@ function prompt_for_config() {
     read -p "$(echo -e "${COLOR_CYAN}Remote webroot${COLOR_RESET} [${default_remote_webroot}]: ")" input_remote_webroot
     remote_webroot="${input_remote_webroot:-$default_remote_webroot}"
     
-    # Database operations
-    print_step "Database Configuration"
-    while true; do
-        echo -e "\n${COLOR_CYAN}How should the database be handled?${COLOR_RESET}"
-        echo "  1) Copy database and perform search-replace (URL and path rewrites)"
-        echo "  2) Copy database without modifications (no search-replace)"
-        echo "  3) Files only (skip database operations entirely)"
-        read -p "$(echo -e "${COLOR_GREEN}Select option [1-3] [1]:${COLOR_RESET} ")" db_option
-        db_option="${db_option:-1}"
-        
-        case $db_option in
-            1)
-                do_search_replace=1
-                files_only=0
-                no_db_import=0
-                print_success "Database will be copied with search-replace"
-                
-                # Auto-derive search-replace values from paths
-                local auto_source_url=$(derive_url_from_path "$source_path_prefix")
-                local auto_remote_url=$(derive_url_from_path "$remote_path_prefix")
-                local auto_source_path="${source_path_prefix}${source_webroot}"
-                local auto_remote_path="${remote_path_prefix}${remote_webroot}"
-                
-                echo -e "\n${COLOR_CYAN}Search-Replace Configuration:${COLOR_RESET}"
-                print_info "Auto-detected values based on your paths. Press Enter to accept."
-                
-                read -p "$(echo -e "${COLOR_CYAN}Source URL${COLOR_RESET} [${auto_source_url}]: ")" input_source_url
-                wp_search_replace_source_url="${input_source_url:-$auto_source_url}"
-                
-                read -p "$(echo -e "${COLOR_CYAN}Remote URL${COLOR_RESET} [${auto_remote_url}]: ")" input_remote_url
-                wp_search_replace_remote_url="${input_remote_url:-$auto_remote_url}"
-                
-                read -p "$(echo -e "${COLOR_CYAN}Source file path${COLOR_RESET} [${auto_source_path}]: ")" input_source_path
-                wp_search_replace_source_path="${input_source_path:-$auto_source_path}"
-                
-                read -p "$(echo -e "${COLOR_CYAN}Remote file path${COLOR_RESET} [${auto_remote_path}]: ")" input_remote_path
-                wp_search_replace_remote_path="${input_remote_path:-$auto_remote_path}"
-                break
-                ;;
-            2)
-                do_search_replace=0
-                files_only=0
-                no_db_import=0
-                print_success "Database will be copied without modifications"
-                break
-                ;;
-            3)
-                files_only=1
-                do_search_replace=0
-                no_db_import=1
-                print_success "Only files will be copied (database skipped)"
-                break
-                ;;
-            *)
-                print_warning "Invalid option. Please select 1, 2, or 3."
-                ;;
-        esac
-    done
-    
     # Save configuration
     save_config
 }
