@@ -804,7 +804,7 @@ fi
 
 # Connect to remote and run local commands
 print_step "EXECUTING post-deployment commands on REMOTE (${remote_ip_address})..."
-ssh -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << EOF
+ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << 'EOF'
 shopt -s dotglob
 echo -e "\n${COLOR_CYAN}Connected to REMOTE: \$(whoami)@\$(hostname) (\$(hostname -I))${COLOR_RESET}"
 
