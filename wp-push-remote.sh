@@ -132,7 +132,6 @@ show_help() {
     echo ""
     echo -e "${COLOR_BOLD_GREEN}REQUIREMENTS:${COLOR_RESET}"
     echo "    - WP-CLI installed on both source and remote servers"
-    echo "    - wp-cli.yml configured in home directory with correct WP installation path"
     echo "    - SSH access to remote server"
     echo ""
     echo -e "${COLOR_BOLD_GREEN}CONFIGURATION:${COLOR_RESET}"
