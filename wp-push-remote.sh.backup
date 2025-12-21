@@ -101,7 +101,7 @@ show_help() {
     echo -e "    ${COLOR_YELLOW}-h, --help${COLOR_RESET}              Show this help message"
     echo -e "    ${COLOR_YELLOW}-u, --unattended${COLOR_RESET}       Run in unattended mode (no prompts)"
     echo -e "    ${COLOR_YELLOW}-i, --interactive${COLOR_RESET}      Run in interactive mode (default)"
-    echo -e "    ${COLOR_YELLOW}-c, --config${COLOR_RESET}    Prompt for all configuration settings"
+    echo -e "    ${COLOR_YELLOW}-p, --prompt-config${COLOR_RESET}    Prompt for all configuration settings"
     echo ""
     echo -e "    ${COLOR_YELLOW}-e, --exclude LIST${COLOR_RESET}     Space-delimited list of paths to exclude (quote the list)"
     echo "                                Example: -e \"wp-content/plugins wp-content/themes/mytheme myfile.js\""
@@ -119,7 +119,7 @@ show_help() {
     echo ""
     echo -e "${COLOR_BOLD_GREEN}EXAMPLES:${COLOR_RESET}"
     echo "    # Run with interactive prompts for configuration"
-    echo "    $0 --config"
+    echo "    $0 --prompt-config"
     echo ""
     echo "    # Run in unattended mode with custom exclusions"
     echo "    $0 -u -e \"uploads .maintenance .git\""
@@ -135,19 +135,19 @@ show_help() {
     echo "    - SSH access to remote server"
     echo ""
     echo -e "${COLOR_BOLD_GREEN}CONFIGURATION:${COLOR_RESET}"
-    echo "    Configuration is saved to ~/.wp-push-remote.conf after using --config"
+    echo "    Configuration is saved to ~/.wp-push-remote.conf after using --prompt-config"
     echo "    and automatically loaded on subsequent runs."
     echo ""
     echo "    Default path structure: /sites/{domain}/files"
     echo "    URLs and search-replace paths are auto-detected from your configuration."
     echo ""
-    echo "    Use --config to configure or reconfigure settings interactively."
+    echo "    Use --prompt-config to configure or reconfigure settings interactively."
     echo ""
     exit 0
 }
 
 ####################################################################################
-# DEFAULT CONFIGURATION - Can be overridden via --config option
+# DEFAULT CONFIGURATION - Can be overridden via --prompt-config option
 ####################################################################################
 
 # Configuration file location
@@ -319,7 +319,7 @@ validate_config() {
     
     if [[ $errors -gt 0 ]]; then
         print_error "Configuration validation failed. Please set required variables."
-        print_info "Use --config to set configuration interactively or edit the script."
+        print_info "Use --prompt-config to set configuration interactively or edit the script."
         exit 1
     fi
 }
@@ -494,7 +494,7 @@ function prompt_for_config() {
 ####################################################################################
 
 # Parse long options
-TEMP=$(getopt -o huice: --long help,unattended,interactive,config,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug -n "$0" -- "$@" 2>/dev/null)
+TEMP=$(getopt -o huipe: --long help,unattended,interactive,prompt-config,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug -n "$0" -- "$@" 2>/dev/null)
 
 # Check for getopt errors
 if [[ $? -ne 0 ]]; then
@@ -512,7 +512,7 @@ if [[ $? -ne 0 ]]; then
                 unattended_mode=0
                 shift
                 ;;
-            -c|--config)
+            -p|--prompt-config)
                 prompt_config=1
                 shift
                 ;;
@@ -585,7 +585,7 @@ else
                 unattended_mode=0
                 shift
                 ;;
-            -c|--config)
+            -p|--prompt-config)
                 prompt_config=1
                 shift
                 ;;
