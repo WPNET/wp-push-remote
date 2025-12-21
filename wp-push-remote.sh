@@ -680,7 +680,19 @@ local_ip=$(hostname -I 2>/dev/null | awk '{print $1}' || hostname)
 
 print_step "START WP PUSH site FROM ${local_ip} TO ${remote_ip_address}"
 print_info "Script: 'wp-push-remote.sh' v${script_version}"
-print_info "Source URL: $( wp option get siteurl --path="${source_path}" 2>/dev/null || echo 'Unable to detect' )"
+
+# Try to detect source URL only if WordPress is installed and accessible
+if [[ -f "${source_path}/wp-config.php" ]]; then
+    source_url=$(wp option get siteurl --path="${source_path}" 2>/dev/null || echo "")
+    if [[ -n "$source_url" ]]; then
+        print_info "Source URL: ${source_url}"
+    else
+        print_info "Source URL: Unable to detect (WP-CLI may not be configured)"
+    fi
+else
+    print_info "Source URL: Not detected (WordPress not found at ${source_path})"
+fi
+
 echo -e "${COLOR_CYAN}Source:${COLOR_RESET} ${current_user}@${source_path}"
 echo -e "${COLOR_CYAN}Remote:${COLOR_RESET} ${remote_user}@${remote_ip_address}:${remote_path}"
 echo -e "${COLOR_CYAN}Excludes:${COLOR_RESET} ${excludes[*]}"
@@ -694,7 +706,18 @@ echo -e "  ${COLOR_CYAN}install_plugins:${COLOR_RESET} ${install_plugins}"
 echo -e "  ${COLOR_CYAN}exclude_wpconfig:${COLOR_RESET} ${exclude_wpconfig}"
 echo -e "  ${COLOR_CYAN}disable_wp_debug:${COLOR_RESET} ${disable_wp_debug}"
 
-if [[ ! -f ~/.ssh/id_rsa_remote_${remote_user} ]]; then
+# Check for existing SSH keys (Ed25519 preferred, RSA fallback)
+ssh_key_path=""
+if [[ -f ~/.ssh/id_ed25519_remote_${remote_user} ]]; then
+    ssh_key_path=~/.ssh/id_ed25519_remote_${remote_user}
+    print_info "Using existing Ed25519 SSH key: ${ssh_key_path}"
+elif [[ -f ~/.ssh/id_rsa_remote_${remote_user} ]]; then
+    ssh_key_path=~/.ssh/id_rsa_remote_${remote_user}
+    print_info "Using existing RSA SSH key: ${ssh_key_path}"
+fi
+
+# If no key exists, offer to generate one
+if [[ -z "$ssh_key_path" ]]; then
     if [[ $unattended_mode -eq 0 ]]; then
         if ( user_prompt "No SSH key found - OK to generate one now?" ); then
             # Generate SSH key (ed25519 is preferred on Ubuntu 24.04+ for better performance and security)
@@ -703,12 +726,11 @@ if [[ ! -f ~/.ssh/id_rsa_remote_${remote_user} ]]; then
                 # Set proper permissions
                 chmod 600 ~/.ssh/id_ed25519_remote_${remote_user}
                 chmod 644 ~/.ssh/id_ed25519_remote_${remote_user}.pub
-                print_success "SSH key generated: ~/.ssh/id_ed25519_remote_${remote_user}"
-                echo -e "\n${COLOR_BOLD_YELLOW}Public key:${COLOR_RESET}\n"
-                cat ~/.ssh/id_ed25519_remote_${remote_user}.pub
-                echo -e "\n\n${COLOR_BOLD_YELLOW}IMPORTANT:${COLOR_RESET} Add this key to the REMOTE server's authorized_keys file for user '${remote_user}'"
-                # Update SSH key path to use the new key
                 ssh_key_path=~/.ssh/id_ed25519_remote_${remote_user}
+                print_success "SSH key generated: ${ssh_key_path}"
+                echo -e "\n${COLOR_BOLD_YELLOW}Public key:${COLOR_RESET}\n"
+                cat ${ssh_key_path}.pub
+                echo -e "\n\n${COLOR_BOLD_YELLOW}IMPORTANT:${COLOR_RESET} Add this key to the REMOTE server's authorized_keys file for user '${remote_user}'"
             else
                 print_error "Failed to generate SSH key"
                 exit 1
@@ -720,18 +742,8 @@ if [[ ! -f ~/.ssh/id_rsa_remote_${remote_user} ]]; then
     else
         print_warning "No SSH key found - Skipping key generation in unattended mode."
         print_warning "Script may fail if SSH authentication is not configured."
-    fi
-else
-    # Use existing RSA key
-    ssh_key_path=~/.ssh/id_rsa_remote_${remote_user}
-fi
-
-# Check if ed25519 key exists (from new generation)
-if [[ -z "$ssh_key_path" ]]; then
-    if [[ -f ~/.ssh/id_ed25519_remote_${remote_user} ]]; then
+        # Set a default path anyway for potential failure later
         ssh_key_path=~/.ssh/id_ed25519_remote_${remote_user}
-    else
-        ssh_key_path=~/.ssh/id_rsa_remote_${remote_user}
     fi
 fi
 
