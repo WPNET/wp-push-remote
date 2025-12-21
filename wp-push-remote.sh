@@ -220,8 +220,13 @@ validate_config() {
         if [[ "$ID" != "ubuntu" ]]; then
             print_warning "This script is optimized for Ubuntu. Detected: $ID"
             print_info "Continuing anyway, but some features may not work as expected."
-        elif [[ -n "$VERSION_ID" ]] && (( $(echo "$VERSION_ID < 24.04" | bc -l 2>/dev/null || echo 0) )); then
-            print_warning "This script is optimized for Ubuntu 24.04+. Detected: Ubuntu $VERSION_ID"
+        elif [[ -n "$VERSION_ID" ]]; then
+            # Pure bash version comparison (no bc required)
+            local version_major="${VERSION_ID%%.*}"
+            local version_minor="${VERSION_ID#*.}"
+            if (( version_major < 24 || (version_major == 24 && ${version_minor%%.*} < 4) )); then
+                print_warning "This script is optimized for Ubuntu 24.04+. Detected: Ubuntu $VERSION_ID"
+            fi
         fi
     fi
     
