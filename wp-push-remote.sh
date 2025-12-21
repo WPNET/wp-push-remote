@@ -181,7 +181,7 @@ disable_wp_debug=0     # disable WP_DEBUG on remote for the duration of the push
 prompt_config=0        # flag to prompt for configuration
 
 # Excludes for rsync to remote (edit as required)
-excludes=(.wp-stats .maintenance wp-content/cache wp-content/uploads/wp-migrate-db /wp-content/updraft wp-content/uploads-old .user.ini)
+excludes=(.wp-stats .maintenance wp-content/cache wp-content/uploads/wp-migrate-db /wp-content/updraft .user.ini)
 # Or just add to the array like this:
 # excludes+=(.user.ini)
 
