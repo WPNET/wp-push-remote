@@ -91,58 +91,56 @@ print_step() {
 
 # Help function
 show_help() {
-    cat << EOF
-${COLOR_BOLD_CYAN}WP Push Remote v${script_version}${COLOR_RESET}
-${COLOR_WHITE}Push a WordPress site from SOURCE server to REMOTE using WP-CLI and rsync${COLOR_RESET}
-
-${COLOR_BOLD_GREEN}USAGE:${COLOR_RESET}
-    $0 [OPTIONS]
-
-${COLOR_BOLD_GREEN}OPTIONS:${COLOR_RESET}
-    ${COLOR_YELLOW}-h, --help${COLOR_RESET}              Show this help message
-    ${COLOR_YELLOW}-u, --unattended${COLOR_RESET}       Run in unattended mode (no prompts)
-    ${COLOR_YELLOW}-i, --interactive${COLOR_RESET}      Run in interactive mode (default)
-    ${COLOR_YELLOW}-p, --prompt-config${COLOR_RESET}    Prompt for all configuration settings
-    
-    ${COLOR_YELLOW}-e, --exclude LIST${COLOR_RESET}     Space-delimited list of paths to exclude (quote the list)
-                                Example: -e "wp-content/plugins wp-content/themes/mytheme myfile.js"
-    
-    ${COLOR_BOLD_CYAN}Option Flags (1=YES, 0=NO):${COLOR_RESET}
-    ${COLOR_YELLOW}--search-replace VALUE${COLOR_RESET}     Run wp search-replace (default: 1)
-    ${COLOR_YELLOW}--files-only VALUE${COLOR_RESET}         Skip database operations (default: 0)
-    ${COLOR_YELLOW}--no-db-import VALUE${COLOR_RESET}       Don't import database on remote (default: 0)
-    ${COLOR_YELLOW}--install-plugins VALUE${COLOR_RESET}    Install plugins on remote (default: 0)
-    ${COLOR_YELLOW}--run-remote-commands VALUE${COLOR_RESET} Run custom commands on remote (default: 0)
-    ${COLOR_YELLOW}--exclude-wpconfig VALUE${COLOR_RESET}   Exclude wp-config.php (default: 1)
-    ${COLOR_YELLOW}--disable-wp-debug VALUE${COLOR_RESET}   Disable WP_DEBUG temporarily (default: 0)
-
-${COLOR_BOLD_GREEN}EXAMPLES:${COLOR_RESET}
-    # Run with interactive prompts for configuration
-    $0 --prompt-config
-    
-    # Run in unattended mode with custom exclusions
-    $0 -u -e "uploads .maintenance .git"
-    
-    # Files only, no database operations
-    $0 --files-only 1
-    
-    # Skip search-replace operation
-    $0 --search-replace 0
-
-${COLOR_BOLD_GREEN}REQUIREMENTS:${COLOR_RESET}
-    - WP-CLI installed on both source and remote servers
-    - wp-cli.yml configured in home directory with correct WP installation path
-    - SSH access to remote server
-
-${COLOR_BOLD_GREEN}CONFIGURATION:${COLOR_RESET}
-    Edit the script to set default values for:
-    - SOURCE: source_path_prefix, source_webroot
-    - REMOTE: remote_ip_address, remote_user, remote_path_prefix, remote_webroot
-    - WP-CLI search-replace URLs and paths
-    
-    Or use --prompt-config to set these interactively at runtime.
-
-EOF
+    echo -e "${COLOR_BOLD_CYAN}WP Push Remote v${script_version}${COLOR_RESET}"
+    echo -e "${COLOR_WHITE}Push a WordPress site from SOURCE server to REMOTE using WP-CLI and rsync${COLOR_RESET}"
+    echo ""
+    echo -e "${COLOR_BOLD_GREEN}USAGE:${COLOR_RESET}"
+    echo "    $0 [OPTIONS]"
+    echo ""
+    echo -e "${COLOR_BOLD_GREEN}OPTIONS:${COLOR_RESET}"
+    echo -e "    ${COLOR_YELLOW}-h, --help${COLOR_RESET}              Show this help message"
+    echo -e "    ${COLOR_YELLOW}-u, --unattended${COLOR_RESET}       Run in unattended mode (no prompts)"
+    echo -e "    ${COLOR_YELLOW}-i, --interactive${COLOR_RESET}      Run in interactive mode (default)"
+    echo -e "    ${COLOR_YELLOW}-p, --prompt-config${COLOR_RESET}    Prompt for all configuration settings"
+    echo ""
+    echo -e "    ${COLOR_YELLOW}-e, --exclude LIST${COLOR_RESET}     Space-delimited list of paths to exclude (quote the list)"
+    echo "                                Example: -e \"wp-content/plugins wp-content/themes/mytheme myfile.js\""
+    echo ""
+    echo -e "    ${COLOR_BOLD_CYAN}Option Flags (1=YES, 0=NO):${COLOR_RESET}"
+    echo -e "    ${COLOR_YELLOW}--search-replace VALUE${COLOR_RESET}     Run wp search-replace (default: 1)"
+    echo -e "    ${COLOR_YELLOW}--files-only VALUE${COLOR_RESET}         Skip database operations (default: 0)"
+    echo -e "    ${COLOR_YELLOW}--no-db-import VALUE${COLOR_RESET}       Don't import database on remote (default: 0)"
+    echo -e "    ${COLOR_YELLOW}--install-plugins VALUE${COLOR_RESET}    Install plugins on remote (default: 0)"
+    echo -e "    ${COLOR_YELLOW}--run-remote-commands VALUE${COLOR_RESET} Run custom commands on remote (default: 0)"
+    echo -e "    ${COLOR_YELLOW}--exclude-wpconfig VALUE${COLOR_RESET}   Exclude wp-config.php (default: 1)"
+    echo -e "    ${COLOR_YELLOW}--disable-wp-debug VALUE${COLOR_RESET}   Disable WP_DEBUG temporarily (default: 0)"
+    echo ""
+    echo -e "${COLOR_BOLD_GREEN}EXAMPLES:${COLOR_RESET}"
+    echo "    # Run with interactive prompts for configuration"
+    echo "    $0 --prompt-config"
+    echo ""
+    echo "    # Run in unattended mode with custom exclusions"
+    echo "    $0 -u -e \"uploads .maintenance .git\""
+    echo ""
+    echo "    # Files only, no database operations"
+    echo "    $0 --files-only 1"
+    echo ""
+    echo "    # Skip search-replace operation"
+    echo "    $0 --search-replace 0"
+    echo ""
+    echo -e "${COLOR_BOLD_GREEN}REQUIREMENTS:${COLOR_RESET}"
+    echo "    - WP-CLI installed on both source and remote servers"
+    echo "    - wp-cli.yml configured in home directory with correct WP installation path"
+    echo "    - SSH access to remote server"
+    echo ""
+    echo -e "${COLOR_BOLD_GREEN}CONFIGURATION:${COLOR_RESET}"
+    echo "    Edit the script to set default values for:"
+    echo "    - SOURCE: source_path_prefix, source_webroot"
+    echo "    - REMOTE: remote_ip_address, remote_user, remote_path_prefix, remote_webroot"
+    echo "    - WP-CLI search-replace URLs and paths"
+    echo ""
+    echo "    Or use --prompt-config to set these interactively at runtime."
+    echo ""
     exit 0
 }
 
