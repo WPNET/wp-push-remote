@@ -10,7 +10,7 @@ if ((BASH_VERSINFO[0] < 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] < 1))); 
     exit 1
 fi
 
-script_version="2.0.2"
+script_version="2.0.3"
 # Author:       gb@wpnet.nz
 # Description:  Push a site from SOURCE server to REMOTE. Run this script from the SOURCE server.
 # Requirements: WP-CLI installed on source and remote
@@ -836,8 +836,6 @@ fi
 if (( ${files_only} == 0 && ${no_db_import} == 0 )); then
 echo -e "${COLOR_BLUE}IMPORTING database ...${COLOR_RESET}"
 wp db import ${remote_path}/${source_db_name} --path="${remote_path}"
-echo -e "${COLOR_BLUE}FLUSHING WP cache ...${COLOR_RESET}"
-wp cache flush --hard --path="${remote_path}"
 echo -e "\n${COLOR_BLUE}DELETING imported database source file ...${COLOR_RESET}"
 rm -v ${remote_path}/${source_db_name}
 fi
@@ -851,6 +849,10 @@ if [[ -n "${wp_search_replace_source_path}" && -n "${wp_search_replace_remote_pa
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for file PATHs ...${COLOR_RESET}"
 wp search-replace --precise ${wp_search_replace_source_path} ${wp_search_replace_remote_path} --report-changed-only --format=table --path="${remote_path}"
 fi
+fi
+
+# Flush cache once after all database operations
+if (( ${files_only} == 0 && ${no_db_import} == 0 )); then
 echo -e "${COLOR_BLUE}FLUSHING WP cache ...${COLOR_RESET}"
 wp cache flush --hard --path="${remote_path}"
 fi
