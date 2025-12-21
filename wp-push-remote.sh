@@ -629,6 +629,14 @@ remote_path="${remote_path_prefix}${remote_webroot}"
 source_db_name="${db_export_prefix}${rnd_str}${rnd_str_key}.sql"
 current_user=$(whoami)
 
+# Auto-assign paths for search-replace if not already set
+if [[ -z "$wp_search_replace_source_path" ]]; then
+    wp_search_replace_source_path="$source_path"
+fi
+if [[ -z "$wp_search_replace_remote_path" ]]; then
+    wp_search_replace_remote_path="$remote_path"
+fi
+
 if (( exclude_wpconfig == 1 )); then
     excludes+=(wp-config.php)
 fi
@@ -644,6 +652,10 @@ if [[ -f "${source_path}/wp-config.php" ]]; then
     source_url=$(wp option get siteurl --path="${source_path}" 2>/dev/null || echo "")
     if [[ -n "$source_url" ]]; then
         print_info "Source URL: ${source_url}"
+        # Assign detected source URL to search-replace variable if not already set
+        if [[ -z "$wp_search_replace_source_url" ]]; then
+            wp_search_replace_source_url="$source_url"
+        fi
     else
         print_info "Source URL: Unable to detect (WP-CLI may not be configured)"
     fi
@@ -782,13 +794,37 @@ rm -v ${remote_path}/${source_db_name}
 fi
 
 if (( ${do_search_replace} == 1 && ${files_only} == 0 && ${no_db_import} == 0 )); then
-if [[ -n "${wp_search_replace_source_url}" && -n "${wp_search_replace_remote_url}" ]]; then
-echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for URLs ...${COLOR_RESET}"
-wp search-replace --precise ${wp_search_replace_source_url} ${wp_search_replace_remote_url} --report-changed-only --format=table --path="${remote_path}"
+# Detect URLs from database if not set
+if [[ -z "${wp_search_replace_source_url}" ]]; then
+  echo -e "${COLOR_BLUE}Detecting source site URL from configuration...${COLOR_RESET}"
+  wp_search_replace_source_url="${wp_search_replace_source_url}"
 fi
+if [[ -z "${wp_search_replace_remote_url}" ]]; then
+  echo -e "${COLOR_BLUE}Detecting remote site URL from database...${COLOR_RESET}"
+  wp_search_replace_remote_url=\$(wp option get siteurl --path="${remote_path}" 2>/dev/null || echo "")
+  if [[ -n "\$wp_search_replace_remote_url" ]]; then
+    echo "Remote URL detected: \$wp_search_replace_remote_url"
+  else
+    echo "Unable to detect remote URL"
+  fi
+fi
+
+# Run search-replace for URLs if both are available
+if [[ -n "${wp_search_replace_source_url}" && -n "\$wp_search_replace_remote_url" ]]; then
+echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for URLs ...${COLOR_RESET}"
+echo "Replacing: ${wp_search_replace_source_url} -> \$wp_search_replace_remote_url"
+wp search-replace --precise "${wp_search_replace_source_url}" "\$wp_search_replace_remote_url" --report-changed-only --format=table --path="${remote_path}"
+else
+echo -e "${COLOR_YELLOW}[WARNING] Skipping URL search-replace - source or remote URL not available${COLOR_RESET}"
+fi
+
+# Run search-replace for paths if both are available
 if [[ -n "${wp_search_replace_source_path}" && -n "${wp_search_replace_remote_path}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for file PATHs ...${COLOR_RESET}"
-wp search-replace --precise ${wp_search_replace_source_path} ${wp_search_replace_remote_path} --report-changed-only --format=table --path="${remote_path}"
+echo "Replacing: ${wp_search_replace_source_path} -> ${wp_search_replace_remote_path}"
+wp search-replace --precise "${wp_search_replace_source_path}" "${wp_search_replace_remote_path}" --report-changed-only --format=table --path="${remote_path}"
+else
+echo -e "${COLOR_YELLOW}[WARNING] Skipping path search-replace - source or remote path not available${COLOR_RESET}"
 fi
 fi
 
