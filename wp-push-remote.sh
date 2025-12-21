@@ -367,6 +367,24 @@ function user_prompt() {
     fi
 }
 
+# Function to handle user prompts with default NO
+function user_prompt_default_no() {
+    if [[ $unattended_mode -eq 0 ]]; then
+        while true; do
+            read -p "$(echo -e "\\n${COLOR_YELLOW}CONFIRM:${COLOR_RESET} ${1} ${COLOR_GREEN}[y/yes to confirm, Enter to skip]${COLOR_RESET} ") " user_input
+            case $user_input in
+                [Yy]* ) return 0;;
+                "" ) return 1;;
+                [Nn]* ) return 1;;
+                * ) echo -e "${COLOR_YELLOW}Please respond yes [Y/y] to confirm or press Enter to skip.${COLOR_RESET}";;
+            esac
+        done
+    else
+        print_info "CONFIRM: ${1} - Assuming NO in unattended mode."
+        return 1
+    fi
+}
+
 # Function to prompt for configuration
 function prompt_for_config() {
     print_header "CONFIGURATION SETUP"
@@ -748,7 +766,7 @@ if [[ -z "$ssh_key_path" ]]; then
 fi
 
 if [[ $unattended_mode -eq 0 ]]; then
-    if ( user_prompt "Test the connection to the remote server?" ); then
+    if ( user_prompt_default_no "Test the connection to the remote server?" ); then
         print_step "Testing the connection: ssh ${remote_user}@${remote_ip_address}"
         print_info "If you get a password prompt, then the key is not set up correctly."
         sleep 1
