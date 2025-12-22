@@ -324,12 +324,26 @@ install_for_user() {
     # Create a temporary copy with the install-for-user option disabled
     local temp_script="/tmp/wp-push-remote-temp-$$.sh"
     
-    # Copy the script and comment out the install-for-user option handling
-    # We'll use sed to replace the option parsing lines for -i|--install-for-user
+    # Copy the script and replace the install-for-user option with a disabled version
     print_info "Creating modified version of script (with --install-for-user disabled)..."
     
-    # Copy the script and modify it to disable the install-for-user option
-    sed 's/^\( *\)-i|--install-for-user)/# \1-i|--install-for-user) # DISABLED IN INSTALLED VERSION/' "$script_path" > "$temp_script"
+    # Use awk to replace the install-for-user case blocks with error messages
+    awk '
+    /^[[:space:]]*-i\|--install-for-user\)/ {
+        print $0 " # DISABLED IN INSTALLED VERSION"
+        in_install_block = 1
+        next
+    }
+    in_install_block && /^[[:space:]]*;;$/ {
+        print "                print_error \"The --install-for-user option is disabled in this installed copy\""
+        print "                exit 1"
+        print $0
+        in_install_block = 0
+        next
+    }
+    in_install_block { next }
+    { print }
+    ' "$script_path" > "$temp_script"
     
     # Now copy the modified script to the target location
     if cp "$temp_script" "$install_path"; then
