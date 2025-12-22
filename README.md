@@ -50,11 +50,6 @@ wp --info
    chmod +x wp-push-remote.sh
    ```
 
-3. Edit default configuration values in the script (optional):
-   ```bash
-   nano wp-push-remote.sh
-   ```
-
 ## Usage
 
 ### Quick Start
@@ -207,18 +202,6 @@ The script automatically detects:
 - Press Enter to accept defaults shown in [brackets]
 - Previous values remembered for easy updates
 
-### Manual Editing
-
-Edit `~/.wp-push-remote.conf` if needed:
-```bash
-source_path_prefix="/sites/example.com/"
-source_webroot="files"
-remote_ip_address="192.168.1.100"
-remote_user="production"
-remote_path_prefix="/sites/staging.example.com/"
-remote_webroot="files"
-```
-
 ### Default Exclusions
 
 These paths are excluded by default:
@@ -295,9 +278,8 @@ If not installed, follow the [WP-CLI installation guide](https://wp-cli.org/#ins
 
 ### Database Import Fails
 
-1. Check that wp-cli.yml is configured correctly on the remote server
-2. Verify database credentials in remote wp-config.php
-3. Ensure sufficient disk space on remote server
+1. Verify database credentials in remote wp-config.php
+2. Ensure sufficient disk space on remote server
 
 ### Rsync Errors
 
@@ -324,32 +306,6 @@ This script is provided as-is for use in WordPress deployments.
 ## Author
 
 **gb@wpnet.nz**
-
-## Version History
-
-- **v2.0.4**: Current version
-  - Configuration simplified: use `--config` instead of `--prompt-config`
-  - No more database configuration prompts during setup
-  - Auto-detection of URLs via WP-CLI
-  - Table prefix detection using `wp db prefix` command (best practice)
-  - Table prefix synchronization with confirmation
-  - Enhanced `--install-plugins` to accept space-delimited plugin list
-  - All database operations controlled via CLI flags
-  - Improved search-replace with auto-detected values
-  - Single cache flush after all operations
-  - Better error handling and user feedback
-  
-- **v2.0.0**: Major update
-  - Interactive configuration with prompts
-  - Colorized output for better UX
-  - Boolean flag syntax
-  - Custom exclusion support
-  - Ubuntu 22.04+ compatibility
-  - Ed25519 SSH key support
-  - Enhanced validation
-  - Automatic cleanup on interruption
-  
-- **v1.8.1**: Previous stable version
 
 ## Support
 
