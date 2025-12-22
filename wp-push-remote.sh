@@ -276,6 +276,13 @@ delete_ssh_key_pairs() {
 install_for_user() {
     print_header "INSTALL SCRIPT FOR USER"
     
+    # Check if /sites directory exists
+    if [[ ! -d /sites ]]; then
+        print_error "/sites directory does not exist"
+        print_info "This feature requires a /sites directory structure"
+        exit 1
+    fi
+    
     print_info "Searching for WordPress installations in /sites/*/files/ ..."
     
     # Find all directories that match the pattern /sites/*/files/
@@ -305,7 +312,7 @@ install_for_user() {
     done
     
     echo ""
-    read -p "$(echo -e "${COLOR_CYAN}Enter the number of your choice:${COLOR_RESET} ")" choice
+    read -r -p "$(echo -e "${COLOR_CYAN}Enter the number of your choice:${COLOR_RESET} ")" choice
     
     # Validate input
     if ! [[ "$choice" =~ ^[0-9]+$ ]] || [[ $choice -lt 1 ]] || [[ $choice -gt ${#sites[@]} ]]; then
@@ -333,7 +340,7 @@ install_for_user() {
     # Use awk to replace the install-for-user case blocks with error messages
     # This handles both occurrences (in fallback and main getopt parsing)
     awk '
-    /^[[:space:]]*-i\|--install-for-user\)/ {
+    /^[[:space:]]*-i[|]--install-for-user[)]/ {
         # Capture the leading whitespace for proper indentation
         match($0, /^[[:space:]]*/)
         saved_indent = substr($0, 1, RLENGTH)
@@ -342,8 +349,9 @@ install_for_user() {
         next
     }
     in_install_block && /^[[:space:]]*;;$/ {
-        print saved_indent "    print_error \"The --install-for-user option is disabled in this installed copy\""
-        print saved_indent "    exit 1"
+        # Use the same indentation as the next line in the case block
+        print saved_indent "                print_error \"The --install-for-user option is disabled in this installed copy\""
+        print saved_indent "                exit 1"
         print $0
         in_install_block = 0
         next
