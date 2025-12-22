@@ -111,7 +111,8 @@ show_help() {
     echo -e "    ${COLOR_YELLOW}--no-search-replace${COLOR_RESET}      Skip wp search-replace"
     echo -e "    ${COLOR_YELLOW}--files-only${COLOR_RESET}             Skip database operations (default: no)"
     echo -e "    ${COLOR_YELLOW}--no-db-import${COLOR_RESET}           Don't import database on remote (default: no)"
-    echo -e "    ${COLOR_YELLOW}--install-plugins${COLOR_RESET}        Install plugins on remote (default: no)"
+    echo -e "    ${COLOR_YELLOW}--install-plugins${COLOR_RESET} LIST   Space-delimited list of plugins to install"
+    echo -e "                                Example: --install-plugins \"woocommerce contact-form-7\""
     echo -e "    ${COLOR_YELLOW}--run-remote-commands${COLOR_RESET}    Run custom commands on remote (default: no)"
     echo -e "    ${COLOR_YELLOW}--exclude-wpconfig${COLOR_RESET}       Exclude wp-config.php (default: yes)"
     echo -e "    ${COLOR_YELLOW}--no-exclude-wpconfig${COLOR_RESET}    Include wp-config.php in sync"
@@ -435,7 +436,7 @@ function prompt_for_config() {
 ####################################################################################
 
 # Parse long options
-TEMP=$(getopt -o huice: --long help,unattended,interactive,config,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug -n "$0" -- "$@" 2>/dev/null)
+TEMP=$(getopt -o huice: --long help,unattended,interactive,config,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug -n "$0" -- "$@" 2>/dev/null)
 
 # Check for getopt errors
 if [[ $? -ne 0 ]]; then
@@ -484,8 +485,13 @@ if [[ $? -ne 0 ]]; then
                 shift
                 ;;
             --install-plugins)
+                if [[ -z "$2" ]]; then
+                    print_error "--install-plugins requires a space-delimited list of plugins"
+                    exit 1
+                fi
+                plugins_to_install="$2"
                 install_plugins=1
-                shift
+                shift 2
                 ;;
             --run-remote-commands)
                 run_remote_commands=1
@@ -553,8 +559,9 @@ else
                 shift
                 ;;
             --install-plugins)
+                plugins_to_install="$2"
                 install_plugins=1
-                shift
+                shift 2
                 ;;
             --run-remote-commands)
                 run_remote_commands=1
@@ -770,6 +777,59 @@ if rsync -e "ssh -i \"${ssh_key_path}\"" -azhP --delete $(printf -- "--exclude=%
 else
     print_error "Rsync failed"
     exit 1
+fi
+
+# Check and synchronize table prefixes if database operations are enabled
+if (( files_only == 0 && no_db_import == 0 )); then
+    print_step "Checking table prefix compatibility ..."
+    
+    # Get source table prefix using wp-cli
+    source_table_prefix=$(wp db prefix --path="${source_path}" 2>/dev/null | tr -d '\n')
+    if [[ -z "$source_table_prefix" ]]; then
+        print_warning "Unable to detect source table prefix"
+    else
+        print_info "Source table prefix: ${source_table_prefix}"
+    fi
+    
+    # Get remote table prefix using wp-cli via SSH
+    remote_table_prefix=$(ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} "wp db prefix --path='${remote_path}' 2>/dev/null" | tr -d '\n')
+    if [[ -z "$remote_table_prefix" ]]; then
+        print_warning "Unable to detect remote table prefix"
+    else
+        print_info "Remote table prefix: ${remote_table_prefix}"
+    fi
+    
+    # Compare prefixes and synchronize if needed
+    if [[ -n "$source_table_prefix" && -n "$remote_table_prefix" && "$source_table_prefix" != "$remote_table_prefix" ]]; then
+        print_warning "Table prefix mismatch detected!"
+        print_warning "  Source: ${source_table_prefix}"
+        print_warning "  Remote: ${remote_table_prefix}"
+        echo ""
+        
+        if (( unattended_mode == 0 )); then
+            if ( user_prompt "Synchronize remote table prefix to match source?" ); then
+                print_step "Resetting remote database and updating table prefix ..."
+                ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << SYNC_EOF
+wp db reset --yes --path="${remote_path}"
+wp config set table_prefix "${source_table_prefix}" --path="${remote_path}"
+echo "Table prefix synchronized: ${source_table_prefix}"
+SYNC_EOF
+                if [[ $? -eq 0 ]]; then
+                    print_success "Table prefix synchronized successfully"
+                else
+                    print_error "Failed to synchronize table prefix"
+                    exit 1
+                fi
+            else
+                print_warning "Continuing with mismatched table prefixes - import may fail!"
+            fi
+        else
+            print_warning "Unattended mode: Skipping table prefix synchronization"
+            print_warning "Database import may fail with mismatched prefixes!"
+        fi
+    elif [[ -n "$source_table_prefix" && -n "$remote_table_prefix" ]]; then
+        print_success "Table prefixes match: ${source_table_prefix}"
+    fi
 fi
 
 # Connect to remote and run local commands
