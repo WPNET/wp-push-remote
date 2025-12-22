@@ -22,7 +22,7 @@ A powerful bash script to push WordPress sites from a SOURCE server to a REMOTE 
 - **rsync**: For file synchronization (usually pre-installed)
 - **openssh-client**: For SSH connectivity (usually pre-installed)
 
-### Installing Requirements on Ubuntu 24.04
+### Installing Requirements on Ubuntu 22.04
 
 ```bash
 # Install openssh-client and rsync if not present
