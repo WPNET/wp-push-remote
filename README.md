@@ -105,6 +105,7 @@ Boolean flags (presence = enabled):
 - `--exclude-wpconfig` - Exclude wp-config.php from rsync (default: yes)
 - `--no-exclude-wpconfig` - Include wp-config.php in sync
 - `--disable-wp-debug` - Temporarily disable WP_DEBUG during push
+- `--all-tables-with-prefix` - Use --all-tables-with-prefix option for wp search-replace commands (default: no)
 
 ### Examples
 
@@ -139,6 +140,11 @@ Boolean flags (presence = enabled):
 #### Skip Search-Replace
 ```bash
 ./wp-push-remote.sh --no-search-replace
+```
+
+#### Use All Tables With Prefix for Search-Replace
+```bash
+./wp-push-remote.sh --all-tables-with-prefix
 ```
 
 #### Delete SSH Key Pairs

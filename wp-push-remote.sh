@@ -111,6 +111,7 @@ show_help() {
     echo -e "    ${COLOR_YELLOW}--exclude-wpconfig${COLOR_RESET}       Exclude wp-config.php (default: yes)"
     echo -e "    ${COLOR_YELLOW}--no-exclude-wpconfig${COLOR_RESET}    Include wp-config.php in sync"
     echo -e "    ${COLOR_YELLOW}--disable-wp-debug${COLOR_RESET}       Disable WP_DEBUG temporarily (default: no)"
+    echo -e "    ${COLOR_YELLOW}--all-tables-with-prefix${COLOR_RESET} Use --all-tables-with-prefix for wp search-replace (default: no)"
     echo ""
     echo -e "${COLOR_BOLD_GREEN}EXAMPLES:${COLOR_RESET}"
     echo "    # Run with interactive prompts for configuration"
@@ -181,6 +182,7 @@ unattended_mode=0      # flag for unattended mode
 disable_wp_debug=0     # disable WP_DEBUG on remote for the duration of the push, then revert it back to the original state
 prompt_config=0        # flag to prompt for configuration
 delete_ssh_keys=0      # flag to delete SSH key pairs
+all_tables_with_prefix=0  # use --all-tables-with-prefix option for wp search-replace commands
 
 # Load saved configuration if it exists
 load_config() {
@@ -492,7 +494,7 @@ function prompt_for_config() {
 ####################################################################################
 
 # Parse long options
-TEMP=$(getopt -o huicDe: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug -n "$0" -- "$@" 2>/dev/null)
+TEMP=$(getopt -o huicDe: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug,all-tables-with-prefix -n "$0" -- "$@" 2>/dev/null)
 
 # Check for getopt errors
 if [[ $? -ne 0 ]]; then
@@ -569,6 +571,10 @@ if [[ $? -ne 0 ]]; then
                 disable_wp_debug=1
                 shift
                 ;;
+            --all-tables-with-prefix)
+                all_tables_with_prefix=1
+                shift
+                ;;
             *)
                 print_error "Unknown option: $1"
                 echo "Use -h or --help for usage information"
@@ -641,6 +647,10 @@ else
                 ;;
             --disable-wp-debug)
                 disable_wp_debug=1
+                shift
+                ;;
+            --all-tables-with-prefix)
+                all_tables_with_prefix=1
                 shift
                 ;;
             --)
@@ -751,6 +761,7 @@ echo -e "  ${COLOR_CYAN}no_db_import:${COLOR_RESET} ${no_db_import}"
 echo -e "  ${COLOR_CYAN}install_plugins:${COLOR_RESET} ${install_plugins}"
 echo -e "  ${COLOR_CYAN}exclude_wpconfig:${COLOR_RESET} ${exclude_wpconfig}"
 echo -e "  ${COLOR_CYAN}disable_wp_debug:${COLOR_RESET} ${disable_wp_debug}"
+echo -e "  ${COLOR_CYAN}all_tables_with_prefix:${COLOR_RESET} ${all_tables_with_prefix}"
 
 # Check for existing SSH keys (Ed25519 preferred, RSA fallback)
 ssh_key_path=""
@@ -943,7 +954,11 @@ if (( ${do_search_replace} == 1 && ${files_only} == 0 && ${no_db_import} == 0 ))
 if [[ -n "${wp_search_replace_source_url}" && -n "${wp_search_replace_remote_url}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for URLs ...${COLOR_RESET}"
 echo "Replacing: ${wp_search_replace_source_url} -> ${wp_search_replace_remote_url}"
+if (( ${all_tables_with_prefix} == 1 )); then
+replacement_count=\$(wp search-replace --precise "${wp_search_replace_source_url}" "${wp_search_replace_remote_url}" --report-changed-only --format=count --all-tables-with-prefix --path="${remote_path}")
+else
 replacement_count=\$(wp search-replace --precise "${wp_search_replace_source_url}" "${wp_search_replace_remote_url}" --report-changed-only --format=count --path="${remote_path}")
+fi
 echo "Total replacements made: \${replacement_count}"
 else
 echo -e "${COLOR_YELLOW}[WARNING] Skipping URL search-replace - source or remote URL not available${COLOR_RESET}"
@@ -953,7 +968,11 @@ fi
 if [[ -n "${wp_search_replace_source_path}" && -n "${wp_search_replace_remote_path}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for file PATHs ...${COLOR_RESET}"
 echo "Replacing: ${wp_search_replace_source_path} -> ${wp_search_replace_remote_path}"
+if (( ${all_tables_with_prefix} == 1 )); then
+replacement_count=\$(wp search-replace --precise "${wp_search_replace_source_path}" "${wp_search_replace_remote_path}" --report-changed-only --format=count --all-tables-with-prefix --path="${remote_path}")
+else
 replacement_count=\$(wp search-replace --precise "${wp_search_replace_source_path}" "${wp_search_replace_remote_path}" --report-changed-only --format=count --path="${remote_path}")
+fi
 echo "Total replacements made: \${replacement_count}"
 else
 echo -e "${COLOR_YELLOW}[WARNING] Skipping path search-replace - source or remote path not available${COLOR_RESET}"
