@@ -338,8 +338,13 @@ install_for_user() {
     print_info "Creating modified version of script (with --install-for-user disabled)..."
     
     # Use awk to replace the install-for-user case blocks with error messages
+    # and remove the help text line
     # This handles both occurrences (in fallback and main getopt parsing)
     awk '
+    # Remove the help text line for --install-for-user
+    /Install script to a user.*site directory/ {
+        next
+    }
     /^[[:space:]]*-i[|]--install-for-user[)]/ {
         # Capture the leading whitespace for proper indentation
         match($0, /^[[:space:]]*/)
