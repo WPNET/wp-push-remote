@@ -421,9 +421,9 @@ install_for_user() {
         print_info "You may need to run: sudo chown -R ${site_owner}:${site_owner} ${bin_dir}"
     fi
     
-    print_info "Setting executable permission"
-    if chmod +x "$install_path"; then
-        print_success "Executable permission set"
+    print_info "Setting executable permission (0700)"
+    if chmod 0700 "$install_path"; then
+        print_success "Executable permission set to 0700"
     else
         print_error "Failed to set executable permission"
         exit 1
