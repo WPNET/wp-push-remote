@@ -1,33 +1,174 @@
 #!/bin/bash
 
-script_version="1.8.1"
+# Ubuntu 22.04+ compatible script
+# Requires: bash 5.0+, WP-CLI, rsync, openssh-client
+
+# Check bash version (require 5.0+ for Ubuntu 22.04+)
+if ((BASH_VERSINFO[0] < 5)); then
+    echo "ERROR: This script requires Bash 5.0 or higher (current: $BASH_VERSION)"
+    echo "Ubuntu 22.04+ should have bash 5.1+ by default."
+    exit 1
+fi
+
+script_version="2.1.0"
 # Author:       gb@wpnet.nz
 # Description:  Push a site from SOURCE server to REMOTE. Run this script from the SOURCE server.
 # Requirements: WP-CLI installed on source and remote
 #               wp-cli.yml to be configured in the source and remote site owner's home directory, with the correct path to the WP installation
+# Target OS:    Ubuntu 22.04 LTS or higher
 
 ####################################################################################
-# EDIT FOLLOWING LINES ONLY!
+# COLOR DEFINITIONS FOR BETTER UX
 ####################################################################################
+
+# Check if terminal supports colors
+if [[ -t 1 ]]; then
+    # Colors
+    COLOR_RESET='\033[0m'
+    COLOR_RED='\033[0;31m'
+    COLOR_GREEN='\033[0;32m'
+    COLOR_YELLOW='\033[0;33m'
+    COLOR_BLUE='\033[0;34m'
+    COLOR_MAGENTA='\033[0;35m'
+    COLOR_CYAN='\033[0;36m'
+    COLOR_WHITE='\033[1;37m'
+    # Bold colors
+    COLOR_BOLD_GREEN='\033[1;32m'
+    COLOR_BOLD_YELLOW='\033[1;33m'
+    COLOR_BOLD_BLUE='\033[1;34m'
+    COLOR_BOLD_CYAN='\033[1;36m'
+else
+    # No colors
+    COLOR_RESET=''
+    COLOR_RED=''
+    COLOR_GREEN=''
+    COLOR_YELLOW=''
+    COLOR_BLUE=''
+    COLOR_MAGENTA=''
+    COLOR_CYAN=''
+    COLOR_WHITE=''
+    COLOR_BOLD_GREEN=''
+    COLOR_BOLD_YELLOW=''
+    COLOR_BOLD_BLUE=''
+    COLOR_BOLD_CYAN=''
+fi
+
+####################################################################################
+# HELPER FUNCTIONS
+####################################################################################
+
+# Print functions
+print_header() {
+    echo -e "\n${COLOR_BOLD_CYAN}==== $1 ====${COLOR_RESET}"
+}
+
+print_info() {
+    echo -e "${COLOR_CYAN}[INFO]${COLOR_RESET} $1"
+}
+
+print_success() {
+    echo -e "${COLOR_BOLD_GREEN}[SUCCESS]${COLOR_RESET} $1"
+}
+
+print_warning() {
+    echo -e "${COLOR_BOLD_YELLOW}[WARNING]${COLOR_RESET} $1"
+}
+
+print_error() {
+    echo -e "${COLOR_RED}[ERROR]${COLOR_RESET} $1"
+}
+
+print_step() {
+    echo -e "\n${COLOR_BOLD_BLUE}++++ $1${COLOR_RESET}"
+}
+
+# Help function
+show_help() {
+    echo -e "${COLOR_BOLD_CYAN}WP Push Remote v${script_version}${COLOR_RESET}"
+    echo -e "${COLOR_WHITE}Push a WordPress site from SOURCE server to REMOTE using WP-CLI and rsync${COLOR_RESET}"
+    echo ""
+    echo -e "${COLOR_BOLD_GREEN}USAGE:${COLOR_RESET}"
+    echo "    $0 [OPTIONS]"
+    echo ""
+    echo -e "${COLOR_BOLD_GREEN}OPTIONS:${COLOR_RESET}"
+    echo -e "    ${COLOR_YELLOW}-h, --help${COLOR_RESET}             Show this help message"
+    echo -e "    ${COLOR_YELLOW}-u, --unattended${COLOR_RESET}       Run in unattended mode (no prompts)"
+    echo -e "    ${COLOR_YELLOW}-i, --interactive${COLOR_RESET}      Run in interactive mode (default)"
+    echo -e "    ${COLOR_YELLOW}-c, --config${COLOR_RESET}           Prompt for all configuration settings"
+    echo -e "    ${COLOR_YELLOW}-D, --del-ssh-key${COLOR_RESET}      Delete SSH key pairs for remote user (skips push operation)"
+    echo ""
+    echo -e "    ${COLOR_YELLOW}-e, --exclude LIST${COLOR_RESET}     Space-delimited list of paths to exclude (quote the list)"
+    echo "                                Example: -e \"wp-content/plugins wp-content/themes/mytheme myfile.js\""
+    echo ""
+    echo -e "    ${COLOR_BOLD_CYAN}Option Flags:${COLOR_RESET}"
+    echo -e "    ${COLOR_YELLOW}--search-replace${COLOR_RESET}         Run wp search-replace (default: yes)"
+    echo -e "    ${COLOR_YELLOW}--no-search-replace${COLOR_RESET}      Skip wp search-replace"
+    echo -e "    ${COLOR_YELLOW}--files-only${COLOR_RESET}             Skip database operations (default: no)"
+    echo -e "    ${COLOR_YELLOW}--no-db-import${COLOR_RESET}           Don't import database on remote (default: no)"
+    echo -e "    ${COLOR_YELLOW}--install-plugins${COLOR_RESET} LIST   Space-delimited list of plugins to install"
+    echo -e "                                Example: --install-plugins \"woocommerce contact-form-7\""
+    echo -e "    ${COLOR_YELLOW}--run-remote-commands${COLOR_RESET}    Run custom commands on remote (default: no)"
+    echo -e "    ${COLOR_YELLOW}--exclude-wpconfig${COLOR_RESET}       Exclude wp-config.php (default: yes)"
+    echo -e "    ${COLOR_YELLOW}--no-exclude-wpconfig${COLOR_RESET}    Include wp-config.php in sync"
+    echo -e "    ${COLOR_YELLOW}--disable-wp-debug${COLOR_RESET}       Disable WP_DEBUG temporarily (default: no)"
+    echo ""
+    echo -e "${COLOR_BOLD_GREEN}EXAMPLES:${COLOR_RESET}"
+    echo "    # Run with interactive prompts for configuration"
+    echo "    $0 --config"
+    echo ""
+    echo "    # Run in unattended mode with custom exclusions"
+    echo "    $0 -u -e \"uploads .maintenance .git\""
+    echo ""
+    echo "    # Files only, no database operations"
+    echo "    $0 --files-only"
+    echo ""
+    echo "    # Disable search-replace operation"
+    echo "    $0 --no-search-replace"
+    echo ""
+    echo "    # Delete SSH key pairs for remote user"
+    echo "    $0 --del-ssh-key"
+    echo ""
+    echo -e "${COLOR_BOLD_GREEN}REQUIREMENTS:${COLOR_RESET}"
+    echo "    - WP-CLI installed on both source and remote servers"
+    echo "    - SSH access to remote server (ssh key pair generator included)"
+    echo ""
+    echo -e "${COLOR_BOLD_GREEN}CONFIGURATION:${COLOR_RESET}"
+    echo "    Configuration is saved to ~/.wp-push-remote.conf after using --config"
+    echo "    and automatically loaded on subsequent runs."
+    echo ""
+    echo "    Default path structure: /sites/{domain}/files"
+    echo "    URLs and search-replace paths are auto-detected from your configuration."
+    echo ""
+    echo "    Use --config to configure or reconfigure settings interactively."
+    echo ""
+    exit 0
+}
+
+####################################################################################
+# DEFAULT CONFIGURATION - Can be overridden via --config option
+####################################################################################
+
+# Configuration file location
+config_file="${HOME}/.wp-push-remote.conf"
 
 # SOURCE
-source_path_prefix="/sites/mysite.co.nz/" # use trailing slash
+source_path_prefix="" # use trailing slash
 source_webroot="files" # no preceding or trailing slash
 
 # REMOTE
 remote_ip_address=""
 remote_user=""
-remote_path_prefix="/sites/mysite2.co.nz/" # use trailing slash
+remote_path_prefix="" # use trailing slash
 remote_webroot="files" # no preceding or trailing slash
 plugins_to_install="" # space separated list of plugins to install on remote
 
-# WP-CLI search-replace
+# WP-CLI search-replace (will be auto-derived from paths if not set)
 # rewrites for URLs
-wp_search_replace_source_url='//'
-wp_search_replace_remote_url='//'
+wp_search_replace_source_url=''
+wp_search_replace_remote_url=''
 # rewrites for file paths
-wp_search_replace_source_path='/'
-wp_search_replace_remote_path='/'
+wp_search_replace_source_path=''
+wp_search_replace_remote_path=''
 
 # Options flags (1 = YES, 0 = NO)
 do_search_replace=1    # run 'wp search-replace' on remote, once for URLs and once for file paths
@@ -35,12 +176,119 @@ files_only=0           # don't do a database dump & import
 no_db_import=0         # don't run db import on remote
 install_plugins=0      # install plugins on remote
 run_remote_commands=0  # Run custom commands on remote (see below)
-exclude_wpconfig=1     # exclude the wp-config.php file from the rsnc to remote, you probably don't want to change this
+exclude_wpconfig=1     # exclude the wp-config.php file from the rsync to remote, you probably don't want to change this
 unattended_mode=0      # flag for unattended mode
 disable_wp_debug=0     # disable WP_DEBUG on remote for the duration of the push, then revert it back to the original state
+prompt_config=0        # flag to prompt for configuration
+delete_ssh_keys=0      # flag to delete SSH key pairs
+
+# Load saved configuration if it exists
+load_config() {
+    if [[ -f "$config_file" ]]; then
+        print_info "Loading saved configuration from $config_file"
+        source "$config_file"
+    fi
+}
+
+# Save configuration to file
+save_config() {
+    cat > "$config_file" << EOF
+# WP Push Remote Configuration
+# Generated on $(date)
+
+source_path_prefix="$source_path_prefix"
+source_webroot="$source_webroot"
+remote_ip_address="$remote_ip_address"
+remote_user="$remote_user"
+remote_path_prefix="$remote_path_prefix"
+remote_webroot="$remote_webroot"
+EOF
+    chmod 600 "$config_file"
+    print_success "Configuration saved to $config_file"
+}
+
+# Function to delete SSH key pairs
+delete_ssh_key_pairs() {
+    print_header "SSH KEY DELETION"
+    
+    # Check if configuration is loaded
+    if [[ -z "$remote_user" ]]; then
+        print_error "No configuration found. Please run with --config first."
+        exit 1
+    fi
+    
+    # Find matching SSH keys
+    local ssh_dir="${HOME}/.ssh"
+    local key_pattern="id_*_remote_${remote_user}"
+    
+    print_info "Searching for SSH key pairs matching pattern: ${key_pattern}"
+    
+    # Find all matching keys
+    local found_keys=0
+    local deleted_keys=0
+    
+    # Look for Ed25519 keys
+    if [[ -f "${ssh_dir}/id_ed25519_remote_${remote_user}" ]]; then
+        found_keys=$((found_keys + 1))
+        print_step "Found Ed25519 key pair: id_ed25519_remote_${remote_user}"
+        
+        if [[ -f "${ssh_dir}/id_ed25519_remote_${remote_user}.pub" ]]; then
+            print_info "  - Private key: ${ssh_dir}/id_ed25519_remote_${remote_user}"
+            print_info "  - Public key: ${ssh_dir}/id_ed25519_remote_${remote_user}.pub"
+        fi
+        
+        rm -fv "${ssh_dir}/id_ed25519_remote_${remote_user}" "${ssh_dir}/id_ed25519_remote_${remote_user}.pub"
+        deleted_keys=$((deleted_keys + 1))
+    fi
+    
+    # Look for RSA keys
+    if [[ -f "${ssh_dir}/id_rsa_remote_${remote_user}" ]]; then
+        found_keys=$((found_keys + 1))
+        print_step "Found RSA key pair: id_rsa_remote_${remote_user}"
+        
+        if [[ -f "${ssh_dir}/id_rsa_remote_${remote_user}.pub" ]]; then
+            print_info "  - Private key: ${ssh_dir}/id_rsa_remote_${remote_user}"
+            print_info "  - Public key: ${ssh_dir}/id_rsa_remote_${remote_user}.pub"
+        fi
+        
+        rm -fv "${ssh_dir}/id_rsa_remote_${remote_user}" "${ssh_dir}/id_rsa_remote_${remote_user}.pub"
+        deleted_keys=$((deleted_keys + 1))
+    fi
+    
+    if [[ $found_keys -eq 0 ]]; then
+        print_warning "No SSH key pairs found for remote user '${remote_user}'"
+    else
+        print_success "Deleted ${deleted_keys} SSH key pair(s) for remote user '${remote_user}'"
+        print_warning "IMPORTANT: You must MANUALLY remove the public key from the remote server's authorized_keys file:"
+        print_warning "  Remote user: ${remote_user}"
+        print_warning "  Remote location: ~/.ssh/authorized_keys"
+        print_warning "  Look for keys with 'remote_${remote_user}' in the comment"
+    fi
+    
+    exit 0
+}
+
+
+# Extract domain from path (e.g., /sites/example.com/ -> example.com)
+extract_domain_from_path() {
+    local path="$1"
+    # Remove trailing slash and extract domain between /sites/ and next /
+    echo "$path" | sed -E 's#^.*/sites/([^/]+).*$#\1#'
+}
+
+# Derive URL from path (e.g., /sites/example.com/files -> //example.com)
+derive_url_from_path() {
+    local path_prefix="$1"
+    local domain=$(extract_domain_from_path "$path_prefix")
+    if [[ -n "$domain" && "$domain" != "$path_prefix" ]]; then
+        echo "//$domain"
+    else
+        echo ""
+    fi
+}
 
 # Excludes for rsync to remote (edit as required)
-excludes=(.wp-stats .maintenance wp-content/cache wp-content/uploads/wp-migrate-db /wp-content/updraft wp-content/uploads-old .user.ini)
+excludes=(.maintenance wp-content/cache wp-content/uploads/wp-migrate-db /wp-content/updraft)
 # Or just add to the array like this:
 # excludes+=(.user.ini)
 
@@ -48,47 +296,365 @@ excludes=(.wp-stats .maintenance wp-content/cache wp-content/uploads/wp-migrate-
 # NO MORE EDITING BELOW THIS LINE!
 ####################################################################################
 
+# Cleanup function for script interruption
+cleanup_on_exit() {
+    local exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        print_error "\nScript interrupted or failed with exit code: $exit_code"
+        # Clean up any temporary database exports
+        if [[ -n "${source_path}" ]] && [[ -n "${db_export_prefix}" ]] && [[ -n "${rnd_str_key}" ]]; then
+            if ls "${source_path}/${db_export_prefix}"*"${rnd_str_key}.sql" >/dev/null 2>&1; then
+                print_info "Cleaning up temporary database export files..."
+                rm -f "${source_path}/${db_export_prefix}"*"${rnd_str_key}.sql"
+            fi
+        fi
+    fi
+}
+
+# Set trap for cleanup
+trap cleanup_on_exit EXIT INT TERM
+
+# Validate configuration
+validate_config() {
+    local errors=0
+    
+    # Check OS (Ubuntu only)
+    if [[ ! -f /etc/os-release ]]; then
+        print_error "Cannot detect OS. This script is designed for Ubuntu 22.04+."
+        errors=$((errors + 1))
+    else
+        source /etc/os-release
+        if [[ "$ID" != "ubuntu" ]]; then
+            print_warning "This script is optimized for Ubuntu. Detected: $ID"
+            print_info "Continuing anyway, but some features may not work as expected."
+        elif [[ -n "$VERSION_ID" ]]; then
+            # Pure bash version comparison (no bc required)
+            local version_major="${VERSION_ID%%.*}"
+            local version_minor="${VERSION_ID#*.}"
+            if (( version_major < 24 || (version_major == 24 && ${version_minor%%.*} < 4) )); then
+                print_warning "This script is optimized for Ubuntu 22.04+. Detected: Ubuntu $VERSION_ID"
+            fi
+        fi
+    fi
+    
+    # Check required commands
+    local required_cmds=("wp" "rsync" "ssh" "ssh-keygen")
+    for cmd in "${required_cmds[@]}"; do
+        if ! command_exists "$cmd"; then
+            print_error "Required command not found: $cmd"
+            case $cmd in
+                wp)
+                    print_info "Install WP-CLI: curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && sudo mv wp-cli.phar /usr/local/bin/wp"
+                    ;;
+                rsync|ssh|ssh-keygen)
+                    print_info "Install with: sudo apt install openssh-client rsync"
+                    ;;
+            esac
+            errors=$((errors + 1))
+        fi
+    done
+    
+    if [[ -z "$remote_ip_address" ]]; then
+        print_error "Remote IP address is not set!"
+        errors=$((errors + 1))
+    fi
+    
+    if [[ -z "$remote_user" ]]; then
+        print_error "Remote user is not set!"
+        errors=$((errors + 1))
+    fi
+    
+    if [[ -z "$source_path_prefix" ]]; then
+        print_error "Source path prefix is not set!"
+        errors=$((errors + 1))
+    fi
+    
+    if [[ -z "$remote_path_prefix" ]]; then
+        print_error "Remote path prefix is not set!"
+        errors=$((errors + 1))
+    fi
+    
+    if [[ $errors -gt 0 ]]; then
+        print_error "Configuration validation failed. Please set required variables."
+        print_info "Use --config to set configuration interactively or edit the script."
+        exit 1
+    fi
+}
+
+# Normalize paths to ensure trailing slashes where needed
+normalize_paths() {
+    # Add trailing slash if not present
+    [[ "$source_path_prefix" != */ ]] && source_path_prefix="${source_path_prefix}/"
+    [[ "$remote_path_prefix" != */ ]] && remote_path_prefix="${remote_path_prefix}/"
+    
+    # Remove leading/trailing slashes from webroot
+    source_webroot="${source_webroot#/}"
+    source_webroot="${source_webroot%/}"
+    remote_webroot="${remote_webroot#/}"
+    remote_webroot="${remote_webroot%/}"
+}
+
+# Check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Generate random string using Ubuntu's tools
+generate_random_string() {
+    # Ubuntu 22.04+ has md5sum by default
+    echo "$RANDOM" | md5sum | head -c 12
+}
+
 # Function to handle user prompts
 function user_prompt() {
     if [[ $unattended_mode -eq 0 ]]; then
         while true; do
-            read -p "$(echo -e "\\nCONFIRM: ${1} Are you sure? [Yes/no]") " user_input
+            read -p "$(echo -e "\\n${COLOR_YELLOW}CONFIRM:${COLOR_RESET} ${1} ${COLOR_GREEN}Are you sure? [Yes/no]${COLOR_RESET} ") " user_input
             case $user_input in
-                [Yy]* ) break;;
-                "" ) break;;
+                [Yy]* ) return 0;;
+                "" ) return 0;;
                 [Nn]* ) return 1;;
-                * ) echo "Please respond yes [Y/y/{enter}] or no [n].";;
+                * ) echo -e "${COLOR_YELLOW}Please respond yes [Y/y/{enter}] or no [n].${COLOR_RESET}";;
             esac
         done
-        return 0
     else
-        echo -e "\nCONFIRM: ${1} - Assuming YES in unattended mode."
+        print_info "CONFIRM: ${1} - Assuming YES in unattended mode."
         return 0
     fi
+}
+
+# Function to handle user prompts with default NO
+function user_prompt_default_no() {
+    if [[ $unattended_mode -eq 0 ]]; then
+        while true; do
+            read -p "$(echo -e "\\n${COLOR_YELLOW}CONFIRM:${COLOR_RESET} ${1} ${COLOR_GREEN}[y/yes to confirm, Enter to skip]${COLOR_RESET} ") " user_input
+            case $user_input in
+                [Yy]* ) return 0;;
+                "" ) return 1;;
+                [Nn]* ) return 1;;
+                * ) echo -e "${COLOR_YELLOW}Please respond yes [Y/y] to confirm or press Enter to skip.${COLOR_RESET}";;
+            esac
+        done
+    else
+        print_info "CONFIRM: ${1} - Assuming NO in unattended mode."
+        return 1
+    fi
+}
+
+# Function to prompt for configuration
+function prompt_for_config() {
+    print_header "CONFIGURATION SETUP"
+    
+    print_info "Let's configure the SOURCE and REMOTE settings."
+    print_info "Press Enter to accept defaults shown in [brackets]"
+    echo ""
+    
+    # SOURCE configuration
+    print_step "SOURCE Configuration"
+    
+    # Detect current domain from hostname or use saved value
+    local current_domain=$(hostname -f 2>/dev/null || hostname)
+    local default_source_prefix="${source_path_prefix:-/sites/${current_domain}/}"
+    local default_source_webroot="${source_webroot:-files}"
+    
+    read -p "$(echo -e "${COLOR_CYAN}Source path prefix${COLOR_RESET} [${default_source_prefix}]: ")" input_source_path_prefix
+    source_path_prefix="${input_source_path_prefix:-$default_source_prefix}"
+    
+    read -p "$(echo -e "${COLOR_CYAN}Source webroot${COLOR_RESET} [${default_source_webroot}]: ")" input_source_webroot
+    source_webroot="${input_source_webroot:-$default_source_webroot}"
+    
+    # REMOTE configuration
+    print_step "REMOTE Configuration"
+    
+    # Extract source domain for remote default
+    local source_domain=$(extract_domain_from_path "$source_path_prefix")
+    local default_remote_prefix="${remote_path_prefix:-/sites/${source_domain}/}"
+    local default_remote_webroot="${remote_webroot:-files}"
+    
+    read -p "$(echo -e "${COLOR_CYAN}Remote IP address or hostname${COLOR_RESET} [${remote_ip_address}]: ")" input_remote_ip
+    remote_ip_address="${input_remote_ip:-$remote_ip_address}"
+    
+    read -p "$(echo -e "${COLOR_CYAN}Remote SSH user${COLOR_RESET} [${remote_user:-$(whoami)}]: ")" input_remote_user
+    remote_user="${input_remote_user:-${remote_user:-$(whoami)}}"
+    
+    read -p "$(echo -e "${COLOR_CYAN}Remote path prefix${COLOR_RESET} [${default_remote_prefix}]: ")" input_remote_path_prefix
+    remote_path_prefix="${input_remote_path_prefix:-$default_remote_prefix}"
+    
+    read -p "$(echo -e "${COLOR_CYAN}Remote webroot${COLOR_RESET} [${default_remote_webroot}]: ")" input_remote_webroot
+    remote_webroot="${input_remote_webroot:-$default_remote_webroot}"
+    
+    # Save configuration
+    save_config
 }
 
 ####################################################################################
 # Process command line arguments
 ####################################################################################
 
-while getopts "ui" opt; do
-  case $opt in
-    u) 
-      unattended_mode=1 # unattended mode
-      ;;
-    i) 
-      unattended_mode=0 # interactive mode
-      ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
-      exit 1
-      ;;
-    :)
-      echo "Option -$OPTARG requires an argument." >&2
-      exit 1
-      ;;
-  esac
-done
+# Parse long options
+TEMP=$(getopt -o huicDe: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug -n "$0" -- "$@" 2>/dev/null)
+
+# Check for getopt errors
+if [[ $? -ne 0 ]]; then
+    # Fallback to basic getopts if getopt is not available or fails
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                ;;
+            -u|--unattended)
+                unattended_mode=1
+                shift
+                ;;
+            -i|--interactive)
+                unattended_mode=0
+                shift
+                ;;
+            -c|--config)
+                prompt_config=1
+                shift
+                ;;
+            -D|--del-ssh-key)
+                delete_ssh_keys=1
+                shift
+                ;;
+            -e|--exclude)
+                if [[ -z "$2" ]]; then
+                    print_error "--exclude requires an argument"
+                    exit 1
+                fi
+                # Parse space-delimited list and add to excludes array
+                read -ra exclude_items <<< "$2"
+                excludes+=("${exclude_items[@]}")
+                shift 2
+                ;;
+            --search-replace)
+                do_search_replace=1
+                shift
+                ;;
+            --no-search-replace)
+                do_search_replace=0
+                shift
+                ;;
+            --files-only)
+                files_only=1
+                shift
+                ;;
+            --no-db-import)
+                no_db_import=1
+                shift
+                ;;
+            --install-plugins)
+                if [[ -z "$2" ]]; then
+                    print_error "--install-plugins requires a space-delimited list of plugins"
+                    exit 1
+                fi
+                plugins_to_install="$2"
+                install_plugins=1
+                shift 2
+                ;;
+            --run-remote-commands)
+                run_remote_commands=1
+                shift
+                ;;
+            --exclude-wpconfig)
+                exclude_wpconfig=1
+                shift
+                ;;
+            --no-exclude-wpconfig)
+                exclude_wpconfig=0
+                shift
+                ;;
+            --disable-wp-debug)
+                disable_wp_debug=1
+                shift
+                ;;
+            *)
+                print_error "Unknown option: $1"
+                echo "Use -h or --help for usage information"
+                exit 1
+                ;;
+        esac
+    done
+else
+    eval set -- "$TEMP"
+
+    while true; do
+        case "$1" in
+            -h|--help)
+                show_help
+                ;;
+            -u|--unattended)
+                unattended_mode=1
+                shift
+                ;;
+            -i|--interactive)
+                unattended_mode=0
+                shift
+                ;;
+            -c|--config)
+                prompt_config=1
+                shift
+                ;;
+            -D|--del-ssh-key)
+                delete_ssh_keys=1
+                shift
+                ;;
+            -e|--exclude)
+                # Parse space-delimited list and add to excludes array
+                read -ra exclude_items <<< "$2"
+                excludes+=("${exclude_items[@]}")
+                shift 2
+                ;;
+            --search-replace)
+                do_search_replace=1
+                shift
+                ;;
+            --no-search-replace)
+                do_search_replace=0
+                shift
+                ;;
+            --files-only)
+                files_only=1
+                shift
+                ;;
+            --no-db-import)
+                no_db_import=1
+                shift
+                ;;
+            --install-plugins)
+                plugins_to_install="$2"
+                install_plugins=1
+                shift 2
+                ;;
+            --run-remote-commands)
+                run_remote_commands=1
+                shift
+                ;;
+            --exclude-wpconfig)
+                exclude_wpconfig=1
+                shift
+                ;;
+            --no-exclude-wpconfig)
+                exclude_wpconfig=0
+                shift
+                ;;
+            --disable-wp-debug)
+                disable_wp_debug=1
+                shift
+                ;;
+            --)
+                shift
+                break
+                ;;
+            *)
+                print_error "Unknown option: $1"
+                echo "Use -h or --help for usage information"
+                exit 1
+                ;;
+        esac
+    done
+fi
 
 ####################################################################################
 # Set up
@@ -97,8 +663,39 @@ done
 # Clear the screen
 clear
 
+# Show banner
+print_header "WP Push Remote v${script_version}"
+
+# Load saved configuration (unless prompting for new config)
+if [[ $prompt_config -eq 0 ]]; then
+    load_config
+fi
+
+# Prompt for configuration if requested
+if [[ $prompt_config -eq 1 ]]; then
+    prompt_for_config
+fi
+
+# Handle SSH key deletion if requested
+if [[ $delete_ssh_keys -eq 1 ]]; then
+    delete_ssh_key_pairs
+fi
+
+# Normalize paths
+normalize_paths
+
+# Validate configuration
+validate_config
+
+# Check for WP-CLI
+if ! command_exists wp; then
+    print_error "WP-CLI is not installed or not in PATH"
+    print_info "Please install WP-CLI: https://wp-cli.org/#installing"
+    exit 1
+fi
+
 # Set up random rnd_str for database backup filename
-rnd_str=$(echo $RANDOM | md5sum | head -c 12; echo;)
+rnd_str=$(generate_random_string)
 rnd_str_key="38fh"
 
 # Set paths / prefixes
@@ -108,55 +705,114 @@ remote_path="${remote_path_prefix}${remote_webroot}"
 source_db_name="${db_export_prefix}${rnd_str}${rnd_str_key}.sql"
 current_user=$(whoami)
 
+# Auto-assign paths for search-replace if not already set
+if [[ -z "$wp_search_replace_source_path" ]]; then
+    wp_search_replace_source_path="$source_path"
+fi
+if [[ -z "$wp_search_replace_remote_path" ]]; then
+    wp_search_replace_remote_path="$remote_path"
+fi
+
 if (( exclude_wpconfig == 1 )); then
     excludes+=(wp-config.php)
 fi
 
-echo -e "\n++++ START WP PUSH site FROM $(hostname -I)TO ${remote_ip_address}"
-echo "Script: 'wp-cli-push-site.sh' v${script_version}"
-echo "Source URL: $( wp option get siteurl )"
-echo "Source: ${current_user}@${source_path}"
-echo "Remote: ${remote_user}@${remote_ip_address}:${remote_path}"
-echo "Excludes:" "${excludes[@]}"
+# Get hostname IP (handle multiple IPs)
+local_ip=$(hostname -I 2>/dev/null | awk '{print $1}' || hostname)
 
-if [[ ! -f ~/.ssh/id_rsa_remote_${remote_user} ]]; then
+print_step "START WP PUSH site FROM ${local_ip} TO ${remote_ip_address}"
+print_info "Script: 'wp-push-remote.sh' v${script_version}"
+
+# Try to detect source URL only if WordPress is installed and accessible
+if [[ -f "${source_path}/wp-config.php" ]]; then
+    source_url=$(wp option get siteurl --path="${source_path}" 2>/dev/null || echo "")
+    if [[ -n "$source_url" ]]; then
+        print_info "Source URL: ${source_url}"
+        # Assign detected source URL to search-replace variable if not already set
+        if [[ -z "$wp_search_replace_source_url" ]]; then
+            wp_search_replace_source_url="$source_url"
+        fi
+    else
+        print_info "Source URL: Unable to detect (WP-CLI may not be configured)"
+    fi
+else
+    print_info "Source URL: Not detected (WordPress not found at ${source_path})"
+fi
+
+echo -e "${COLOR_CYAN}Source:${COLOR_RESET} ${current_user}@${source_path}"
+echo -e "${COLOR_CYAN}Remote:${COLOR_RESET} ${remote_user}@${remote_ip_address}:${remote_path}"
+echo -e "${COLOR_CYAN}Excludes:${COLOR_RESET} ${excludes[*]}"
+
+# Display option flags
+print_info "Configuration Flags:"
+echo -e "  ${COLOR_CYAN}do_search_replace:${COLOR_RESET} ${do_search_replace}"
+echo -e "  ${COLOR_CYAN}files_only:${COLOR_RESET} ${files_only}"
+echo -e "  ${COLOR_CYAN}no_db_import:${COLOR_RESET} ${no_db_import}"
+echo -e "  ${COLOR_CYAN}install_plugins:${COLOR_RESET} ${install_plugins}"
+echo -e "  ${COLOR_CYAN}exclude_wpconfig:${COLOR_RESET} ${exclude_wpconfig}"
+echo -e "  ${COLOR_CYAN}disable_wp_debug:${COLOR_RESET} ${disable_wp_debug}"
+
+# Check for existing SSH keys (Ed25519 preferred, RSA fallback)
+ssh_key_path=""
+if [[ -f ~/.ssh/id_ed25519_remote_${remote_user} ]]; then
+    ssh_key_path=~/.ssh/id_ed25519_remote_${remote_user}
+    print_info "Using existing Ed25519 SSH key: ${ssh_key_path}"
+elif [[ -f ~/.ssh/id_rsa_remote_${remote_user} ]]; then
+    ssh_key_path=~/.ssh/id_rsa_remote_${remote_user}
+    print_info "Using existing RSA SSH key: ${ssh_key_path}"
+fi
+
+# If no key exists, offer to generate one
+if [[ -z "$ssh_key_path" ]]; then
     if [[ $unattended_mode -eq 0 ]]; then
         if ( user_prompt "No SSH key found - OK to generate one now?" ); then
-            # Gen SSH key
-            ssh-keygen -t rsa -b 4096 -C "${current_user}@$(hostname -I) - Added by wp-cli-push-site.sh" -f ~/.ssh/id_rsa_remote_${remote_user}
-            echo -e "\n++++ SSH key generated: ~/.ssh/id_rsa_remote_${remote_user}"
-            echo -e "++++ Public key:\n"
-            cat ~/.ssh/id_rsa_remote_${remote_user}.pub
-            echo -e "\n\n++++ Add this key to the REMOTE server's authorized_keys file for user '${remote_user}'"
+            # Generate SSH key (ed25519 is preferred on Ubuntu 22.04+ for better performance and security)
+            print_info "Generating Ed25519 SSH key (recommended for Ubuntu 22.04+)..."
+            if ssh-keygen -t ed25519 -C "${current_user}@${local_ip} - Added by wp-push-remote.sh" -f ~/.ssh/id_ed25519_remote_${remote_user} -N ""; then
+                # Set proper permissions
+                chmod 600 ~/.ssh/id_ed25519_remote_${remote_user}
+                chmod 644 ~/.ssh/id_ed25519_remote_${remote_user}.pub
+                ssh_key_path=~/.ssh/id_ed25519_remote_${remote_user}
+                print_success "SSH key generated: ${ssh_key_path}"
+                echo -e "\n${COLOR_BOLD_YELLOW}Public key:${COLOR_RESET}\n"
+                cat ${ssh_key_path}.pub
+                echo -e "\n\n${COLOR_BOLD_YELLOW}IMPORTANT:${COLOR_RESET} Add this key to the REMOTE server's authorized_keys file for user '${remote_user}'"
+            else
+                print_error "Failed to generate SSH key"
+                exit 1
+            fi
         else
-            echo "++++ ABORTED!"
+            print_error "ABORTED!"
             exit 1
         fi
     else
-        echo -e "\n++++ No SSH key found - Skipping key generation in unattended mode."
+        print_warning "No SSH key found - Skipping key generation in unattended mode."
+        print_warning "Script may fail if SSH authentication is not configured."
+        # Set a default path anyway for potential failure later
+        ssh_key_path=~/.ssh/id_ed25519_remote_${remote_user}
     fi
 fi
 
 if [[ $unattended_mode -eq 0 ]]; then
-    if ( user_prompt "Test the connection to the remote server?" ); then
-        echo -e "++++ Testing the connection: ssh ${remote_user}@${remote_ip_address}"
-        echo -e "++++ If you get a password prompt, then the key is not set up correctly."
+    if ( user_prompt_default_no "Test the connection to the remote server?" ); then
+        print_step "Testing the connection: ssh ${remote_user}@${remote_ip_address}"
+        print_info "If you get a password prompt, then the key is not set up correctly."
         sleep 1
-        ssh -q -t -i ~/.ssh/id_rsa_remote_${remote_user} ${remote_user}@${remote_ip_address} << EOF
+        ssh -q -t -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << EOF
 shopt -s dotglob
-echo -e "\n++++ SUCCESS! Connected to REMOTE: \$(whoami)@\$(hostname) (\$(hostname -I))"
+echo -e "\n${COLOR_BOLD_GREEN}SUCCESS! Connected to REMOTE: \$(whoami)@\$(hostname) (\$(hostname -I))${COLOR_RESET}"
 echo -e "Returning to the local server ..."
 sleep 1
 EOF
     else
-        echo "++++ Connection NOT tested!"
+        print_warning "Connection NOT tested!"
     fi
 else
-    echo -e "\n++++ Skipping connection test in unattended mode."
+    print_info "Skipping connection test in unattended mode."
 fi
 
 if ( ! user_prompt "Proceed with the site PUSH?"); then
-    echo "++++ ABORTED!"
+    print_error "ABORTED!"
     exit 1
 fi
 
@@ -164,81 +820,173 @@ fi
 # Run PUSH
 ####################################################################################
 
+print_header "STARTING PUSH OPERATION"
+
 # Record start time
 start_time=$(date +%s)
 
 if (( files_only == 0 ))
 then
     # Dump database
-    echo -e "\n++++ EXPORTING database ..."
-    wp db export ${source_path}/${source_db_name}
+    print_step "EXPORTING database ..."
+    if wp db export ${source_path}/${source_db_name} --path="${source_path}"; then
+        print_success "Database exported successfully"
+    else
+        print_error "Failed to export database"
+        exit 1
+    fi
 fi
 
 # Push files to remote
-echo -e "\n++++ RSYNC-ing files to REMOTE ..."
+print_step "RSYNC-ing files to REMOTE ..."
 
 # run rsync with exclusions
-rsync -e "ssh -i ~/.ssh/id_rsa_remote_${remote_user}" -azhP --delete $(printf -- "--exclude=%q " "${excludes[@]}") ${source_path}/ ${remote_user}@${remote_ip_address}:${remote_path}
+if rsync -e "ssh -i \"${ssh_key_path}\"" -azhP --delete $(printf -- "--exclude=%q " "${excludes[@]}") ${source_path}/ ${remote_user}@${remote_ip_address}:${remote_path}; then
+    print_success "Files synced successfully"
+else
+    print_error "Rsync failed"
+    exit 1
+fi
+
+# Detect remote URL BEFORE any database operations (while remote WordPress is still intact)
+# This MUST happen before table prefix synchronization which may reset the database
+if (( do_search_replace == 1 && files_only == 0 && no_db_import == 0 )); then
+    if [[ -z "${wp_search_replace_remote_url}" ]]; then
+        print_info "Detecting remote site URL before database operations..."
+        wp_search_replace_remote_url=$(ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} "wp option get siteurl --path='${remote_path}' 2>/dev/null" | tr -d '\n')
+        if [[ -n "$wp_search_replace_remote_url" ]]; then
+            print_info "Remote URL detected: ${wp_search_replace_remote_url}"
+        else
+            print_warning "Unable to detect remote URL - search-replace may not work correctly"
+        fi
+    fi
+fi
+
+# Check and synchronize table prefixes if database operations are enabled
+if (( files_only == 0 && no_db_import == 0 )); then
+    print_step "Checking table prefix compatibility ..."
+    
+    # Get source table prefix using wp-cli
+    source_table_prefix=$(wp db prefix --path="${source_path}" 2>/dev/null | tr -d '\n')
+    if [[ -z "$source_table_prefix" ]]; then
+        print_warning "Unable to detect source table prefix"
+    else
+        print_info "Source table prefix: ${source_table_prefix}"
+    fi
+    
+    # Get remote table prefix using wp-cli via SSH
+    remote_table_prefix=$(ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} "wp db prefix --path='${remote_path}' 2>/dev/null" | tr -d '\n')
+    if [[ -z "$remote_table_prefix" ]]; then
+        print_warning "Unable to detect remote table prefix"
+    else
+        print_info "Remote table prefix: ${remote_table_prefix}"
+    fi
+    
+    # Compare prefixes and synchronize if needed
+    if [[ -n "$source_table_prefix" && -n "$remote_table_prefix" && "$source_table_prefix" != "$remote_table_prefix" ]]; then
+        print_warning "Table prefix mismatch detected!"
+        print_warning "  Source: ${source_table_prefix}"
+        print_warning "  Remote: ${remote_table_prefix}"
+        echo ""
+        
+        if (( unattended_mode == 0 )); then
+            if ( user_prompt "Synchronize remote table prefix to match source?" ); then
+                print_step "Resetting remote database and updating table prefix ..."
+                ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << SYNC_EOF
+wp db reset --yes --path="${remote_path}"
+wp config set table_prefix "${source_table_prefix}" --path="${remote_path}"
+echo "Table prefix synchronized: ${source_table_prefix}"
+SYNC_EOF
+                if [[ $? -eq 0 ]]; then
+                    print_success "Table prefix synchronized successfully"
+                else
+                    print_error "Failed to synchronize table prefix"
+                    exit 1
+                fi
+            else
+                print_warning "Continuing with mismatched table prefixes - import may fail!"
+            fi
+        else
+            print_warning "Unattended mode: Skipping table prefix synchronization"
+            print_warning "Database import may fail with mismatched prefixes!"
+        fi
+    elif [[ -n "$source_table_prefix" && -n "$remote_table_prefix" ]]; then
+        print_success "Table prefixes match: ${source_table_prefix}"
+    fi
+fi
 
 # Connect to remote and run local commands
-echo -e "\n++++ EXECUTING post-deployment commands on REMOTE (${remote_ip_address})..."
-ssh -i ~/.ssh/id_rsa_remote_${remote_user} ${remote_user}@${remote_ip_address} << EOF
+print_step "EXECUTING post-deployment commands on REMOTE (${remote_ip_address})..."
+ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << EOF
 shopt -s dotglob
-echo -e "\n++++ Connected to REMOTE: \$(whoami)@\$(hostname) (\$(hostname -I))"
+echo -e "\n${COLOR_CYAN}Connected to REMOTE: \$(whoami)@\$(hostname) (\$(hostname -I))${COLOR_RESET}"
 
 if (( ${disable_wp_debug} == 1 )); then
-echo -e "\n++++ Creating backup of wp-config.php ..."
+echo -e "\n${COLOR_BLUE}Creating backup of wp-config.php ...${COLOR_RESET}"
 cp -v ${remote_path}/wp-config.php ${remote_path}/wp-config.php.bak
 # Disable WP_DEBUG to reduce output noise to the terminal
-echo -e "\n++++ Disabling WP_DEBUG in wp-config.php ..."
+echo -e "${COLOR_BLUE}Disabling WP_DEBUG in wp-config.php ...${COLOR_RESET}"
 sed -i "s/define(\s*'WP_DEBUG'.*/define('WP_DEBUG', false);/g" ${remote_path}/wp-config.php
 fi
 
 if (( ${files_only} == 0 && ${no_db_import} == 0 )); then
-echo "++++ IMPORTING database ..."
-wp db import ${remote_path}/${source_db_name}
-echo "++++ FLUSHING WP cache ..."
-wp cache flush --hard
-echo -e "\n++++ DELETING imported database source file ..."
+echo -e "\n${COLOR_BLUE}IMPORTING database ...${COLOR_RESET}"
+wp db import ${remote_path}/${source_db_name} --path="${remote_path}"
+echo -e "\n${COLOR_BLUE}DELETING imported database source file ...${COLOR_RESET}"
 rm -v ${remote_path}/${source_db_name}
 fi
 
+
 if (( ${do_search_replace} == 1 && ${files_only} == 0 && ${no_db_import} == 0 )); then
-if [[ ${wp_search_replace_source_url} != '//' && ${wp_search_replace_remote_url} != '//' ]]; then
-echo -e "\n++++ EXECUTING 'wp search-replace' for URLs ..."
-wp search-replace --precise ${wp_search_replace_source_url} ${wp_search_replace_remote_url} --report-changed-only --format=table
+
+# Run search-replace for URLs if both are available
+if [[ -n "${wp_search_replace_source_url}" && -n "${wp_search_replace_remote_url}" ]]; then
+echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for URLs ...${COLOR_RESET}"
+echo "Replacing: ${wp_search_replace_source_url} -> ${wp_search_replace_remote_url}"
+wp search-replace --precise "${wp_search_replace_source_url}" "${wp_search_replace_remote_url}" --report-changed-only --format=table --path="${remote_path}"
+else
+echo -e "${COLOR_YELLOW}[WARNING] Skipping URL search-replace - source or remote URL not available${COLOR_RESET}"
 fi
-if [[ ${wp_search_replace_source_path} != '/' && ${wp_search_replace_remote_path} != '/' ]]; then
-echo -e "\n++++ EXECUTING 'wp search-replace' for file PATHs ..."
-wp search-replace --precise ${wp_search_replace_source_path} ${wp_search_replace_remote_path} --report-changed-only --format=table
+
+# Run search-replace for paths if both are available
+if [[ -n "${wp_search_replace_source_path}" && -n "${wp_search_replace_remote_path}" ]]; then
+echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for file PATHs ...${COLOR_RESET}"
+echo "Replacing: ${wp_search_replace_source_path} -> ${wp_search_replace_remote_path}"
+wp search-replace --precise "${wp_search_replace_source_path}" "${wp_search_replace_remote_path}" --report-changed-only --format=table --path="${remote_path}"
+else
+echo -e "${COLOR_YELLOW}[WARNING] Skipping path search-replace - source or remote path not available${COLOR_RESET}"
 fi
-echo "++++ FLUSHING WP cache ..."
-wp cache flush --hard
+fi
+
+# Flush cache once after all database operations
+if (( ${files_only} == 0 && ${no_db_import} == 0 )); then
+echo -e "${COLOR_BLUE}FLUSHING WP cache ...${COLOR_RESET}"
+wp cache flush --hard --path="${remote_path}"
 fi
 
 if (( ${run_remote_commands} == 1 )); then
-echo -e "\n++++ EXECUTING custom commands on remote ..."
+echo -e "\n${COLOR_BLUE}EXECUTING custom commands on remote ...${COLOR_RESET}"
 # Use for running custom commands on the remote, after DB import and search-replace, for example:
 # this runs a url_replace with Elementor
-#echo -e "\n++++ Running Elementor replace_urls on remote server ..."
-#wp elementor replace_urls https:${wp_search_replace_source_url} https:${wp_search_replace_remote_url}
+#echo -e "\n${COLOR_BLUE}Running Elementor replace_urls on remote server ...${COLOR_RESET}"
+#wp elementor replace_urls https:${wp_search_replace_source_url} https:${wp_search_replace_remote_url} --path="${remote_path}"
 fi
 
-if (( ${install_plugins} == 1 )) && [[ "$plugins_to_install" != "" ]]; then
-echo -e "\n++++ INSTALLING plugins on remote ..."
-wp plugin install ${plugins_to_install}
-wp cache flush
+if (( ${install_plugins} == 1 )) && [[ -n "${plugins_to_install}" ]]; then
+echo -e "\n${COLOR_BLUE}INSTALLING plugins on remote ...${COLOR_RESET}"
+wp plugin install ${plugins_to_install} --path="${remote_path}"
+wp cache flush --path="${remote_path}"
 fi
 
 if (( ${disable_wp_debug} == 1 )); then
 # Revert wp-config
-echo -e "\n++++ Restoring wp-config.php from backup ..."
+echo -e "\n${COLOR_BLUE}Restoring wp-config.php from backup ...${COLOR_RESET}"
 mv -v ${remote_path}/wp-config.php.bak ${remote_path}/wp-config.php
 fi
 EOF
 
 if (( files_only == 0 )); then
-    echo -e "\n++++ DELETING database backup from source server ..."
+    print_step "DELETING database backup from source server ..."
     rm -v ${source_path}/${db_export_prefix}*${rnd_str_key}.sql # tidy up DB dumps
 fi
 
@@ -247,15 +995,11 @@ end_time=$(date +%s)
 execution_time=$((end_time - start_time))
 minutes=$((execution_time / 60))
 seconds=$((execution_time % 60))
-echo -e "\n++++ Total execution time: ${minutes}:$(printf %02d ${seconds})"
+print_success "Total execution time: ${minutes}:$(printf %02d ${seconds})"
 
-if ( ! user_prompt "Keep the SSH key pair on the local server?" ); then
-    # Remove SSH key pair
-    echo -e "\n++++ REMOVING SSH key pair ..."
-    rm -fv ~/.ssh/id_rsa_remote_${remote_user} ~/.ssh/id_rsa_remote_${remote_user}.pub
-    echo -e "++++ The private + public keys have been removed from the local server."
-    echo -e "++++ The public key must be MANUALLY removed from the REMOTE server's authorized_keys file for user '${remote_user}'"
-fi
-
-echo -e "\n++++ COMPLETED!"
+print_success "COMPLETED!"
+print_info "To delete SSH key pairs later, run with --del-ssh-key"
+echo -e "\n${COLOR_BOLD_GREEN}========================================${COLOR_RESET}"
+echo -e "${COLOR_BOLD_GREEN}    Push operation completed!${COLOR_RESET}"
+echo -e "${COLOR_BOLD_GREEN}========================================${COLOR_RESET}\n"
 exit
