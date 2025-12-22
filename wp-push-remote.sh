@@ -998,7 +998,7 @@ seconds=$((execution_time % 60))
 print_success "Total execution time: ${minutes}:$(printf %02d ${seconds})"
 
 print_success "COMPLETED!"
-print_info "To delete SSH key pairs later, run: $0 --del-ssh-key"
+print_info "To delete SSH key pairs later, run with --del-ssh-key"
 echo -e "\n${COLOR_BOLD_GREEN}========================================${COLOR_RESET}"
 echo -e "${COLOR_BOLD_GREEN}    Push operation completed!${COLOR_RESET}"
 echo -e "${COLOR_BOLD_GREEN}========================================${COLOR_RESET}\n"
