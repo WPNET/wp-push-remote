@@ -95,6 +95,7 @@ wp --info
 - `-u, --unattended` - Run in unattended mode (no prompts)
 - `-i, --interactive` - Run in interactive mode (default)
 - `-c, --config` - Configure source/remote settings (saves to `~/.wp-push-remote.conf`)
+- `-D, --del-ssh-key` - Delete SSH key pairs for remote user (skips push operation)
 
 #### Exclusions
 
@@ -152,10 +153,37 @@ Boolean flags (presence = enabled):
 ./wp-push-remote.sh --no-search-replace
 ```
 
+#### Delete SSH Key Pairs
+```bash
+./wp-push-remote.sh --del-ssh-key
+# Deletes SSH key pairs for the configured remote user
+# Shows details of deleted keys
+# Reminds you to manually remove public key from remote server
+```
+
 #### Combined Options
 ```bash
 ./wp-push-remote.sh --install-plugins "akismet jetpack" -e "uploads cache"
 ```
+
+## SSH Key Management
+
+The script automatically generates SSH keys for secure authentication. After completing a push operation, you can delete these keys if desired.
+
+### Deleting SSH Keys
+
+To delete SSH key pairs:
+```bash
+./wp-push-remote.sh --del-ssh-key
+```
+
+This will:
+- Search for all SSH keys matching the configured remote user (Ed25519 and RSA)
+- Display found key pairs with their locations
+- Delete both private and public keys
+- Remind you to manually remove the public key from the remote server's `~/.ssh/authorized_keys` file
+
+**Important**: You must manually remove the public key from the remote server after deletion.
 
 ## Configuration
 

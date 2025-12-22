@@ -101,7 +101,8 @@ show_help() {
     echo -e "    ${COLOR_YELLOW}-h, --help${COLOR_RESET}              Show this help message"
     echo -e "    ${COLOR_YELLOW}-u, --unattended${COLOR_RESET}       Run in unattended mode (no prompts)"
     echo -e "    ${COLOR_YELLOW}-i, --interactive${COLOR_RESET}      Run in interactive mode (default)"
-    echo -e "    ${COLOR_YELLOW}-c, --config${COLOR_RESET}    Prompt for all configuration settings"
+    echo -e "    ${COLOR_YELLOW}-c, --config${COLOR_RESET}           Prompt for all configuration settings"
+    echo -e "    ${COLOR_YELLOW}-D, --del-ssh-key${COLOR_RESET}      Delete SSH key pairs for remote user (skips push operation)"
     echo ""
     echo -e "    ${COLOR_YELLOW}-e, --exclude LIST${COLOR_RESET}     Space-delimited list of paths to exclude (quote the list)"
     echo "                                Example: -e \"wp-content/plugins wp-content/themes/mytheme myfile.js\""
@@ -130,6 +131,9 @@ show_help() {
     echo ""
     echo "    # Disable search-replace operation"
     echo "    $0 --no-search-replace"
+    echo ""
+    echo "    # Delete SSH key pairs for remote user"
+    echo "    $0 --del-ssh-key"
     echo ""
     echo -e "${COLOR_BOLD_GREEN}REQUIREMENTS:${COLOR_RESET}"
     echo "    - WP-CLI installed on both source and remote servers"
@@ -183,6 +187,7 @@ exclude_wpconfig=1     # exclude the wp-config.php file from the rsync to remote
 unattended_mode=0      # flag for unattended mode
 disable_wp_debug=0     # disable WP_DEBUG on remote for the duration of the push, then revert it back to the original state
 prompt_config=0        # flag to prompt for configuration
+delete_ssh_keys=0      # flag to delete SSH key pairs
 
 # Load saved configuration if it exists
 load_config() {
@@ -208,6 +213,68 @@ EOF
     chmod 600 "$config_file"
     print_success "Configuration saved to $config_file"
 }
+
+# Function to delete SSH key pairs
+delete_ssh_key_pairs() {
+    print_header "SSH KEY DELETION"
+    
+    # Check if configuration is loaded
+    if [[ -z "$remote_user" ]]; then
+        print_error "No configuration found. Please run with --config first."
+        exit 1
+    fi
+    
+    # Find matching SSH keys
+    local ssh_dir="${HOME}/.ssh"
+    local key_pattern="id_*_remote_${remote_user}"
+    
+    print_info "Searching for SSH key pairs matching pattern: ${key_pattern}"
+    
+    # Find all matching keys
+    local found_keys=0
+    local deleted_keys=0
+    
+    # Look for Ed25519 keys
+    if [[ -f "${ssh_dir}/id_ed25519_remote_${remote_user}" ]]; then
+        found_keys=$((found_keys + 1))
+        print_step "Found Ed25519 key pair: id_ed25519_remote_${remote_user}"
+        
+        if [[ -f "${ssh_dir}/id_ed25519_remote_${remote_user}.pub" ]]; then
+            print_info "  - Private key: ${ssh_dir}/id_ed25519_remote_${remote_user}"
+            print_info "  - Public key: ${ssh_dir}/id_ed25519_remote_${remote_user}.pub"
+        fi
+        
+        rm -fv "${ssh_dir}/id_ed25519_remote_${remote_user}" "${ssh_dir}/id_ed25519_remote_${remote_user}.pub"
+        deleted_keys=$((deleted_keys + 1))
+    fi
+    
+    # Look for RSA keys
+    if [[ -f "${ssh_dir}/id_rsa_remote_${remote_user}" ]]; then
+        found_keys=$((found_keys + 1))
+        print_step "Found RSA key pair: id_rsa_remote_${remote_user}"
+        
+        if [[ -f "${ssh_dir}/id_rsa_remote_${remote_user}.pub" ]]; then
+            print_info "  - Private key: ${ssh_dir}/id_rsa_remote_${remote_user}"
+            print_info "  - Public key: ${ssh_dir}/id_rsa_remote_${remote_user}.pub"
+        fi
+        
+        rm -fv "${ssh_dir}/id_rsa_remote_${remote_user}" "${ssh_dir}/id_rsa_remote_${remote_user}.pub"
+        deleted_keys=$((deleted_keys + 1))
+    fi
+    
+    if [[ $found_keys -eq 0 ]]; then
+        print_warning "No SSH key pairs found for remote user '${remote_user}'"
+    else
+        print_success "Deleted ${deleted_keys} SSH key pair(s) for remote user '${remote_user}'"
+        print_warning "IMPORTANT: You must MANUALLY remove the public key from the remote server's authorized_keys file:"
+        print_warning "  Remote user: ${remote_user}"
+        print_warning "  Remote location: ~/.ssh/authorized_keys"
+        print_warning "  Look for keys with 'remote_${remote_user}' in the comment"
+    fi
+    
+    exit 0
+}
+
 
 # Extract domain from path (e.g., /sites/example.com/ -> example.com)
 extract_domain_from_path() {
@@ -432,7 +499,7 @@ function prompt_for_config() {
 ####################################################################################
 
 # Parse long options
-TEMP=$(getopt -o huice: --long help,unattended,interactive,config,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug -n "$0" -- "$@" 2>/dev/null)
+TEMP=$(getopt -o huicDe: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug -n "$0" -- "$@" 2>/dev/null)
 
 # Check for getopt errors
 if [[ $? -ne 0 ]]; then
@@ -452,6 +519,10 @@ if [[ $? -ne 0 ]]; then
                 ;;
             -c|--config)
                 prompt_config=1
+                shift
+                ;;
+            -D|--del-ssh-key)
+                delete_ssh_keys=1
                 shift
                 ;;
             -e|--exclude)
@@ -532,6 +603,10 @@ else
                 prompt_config=1
                 shift
                 ;;
+            -D|--del-ssh-key)
+                delete_ssh_keys=1
+                shift
+                ;;
             -e|--exclude)
                 # Parse space-delimited list and add to excludes array
                 read -ra exclude_items <<< "$2"
@@ -606,6 +681,13 @@ fi
 # Prompt for configuration if requested
 if [[ $prompt_config -eq 1 ]]; then
     prompt_for_config
+fi
+
+# Handle SSH key deletion if requested
+if [[ $delete_ssh_keys -eq 1 ]]; then
+    # Load configuration to get remote_user
+    load_config
+    delete_ssh_key_pairs
 fi
 
 # Normalize paths
@@ -922,15 +1004,8 @@ minutes=$((execution_time / 60))
 seconds=$((execution_time % 60))
 print_success "Total execution time: ${minutes}:$(printf %02d ${seconds})"
 
-if ( ! user_prompt "Keep the SSH key pair on the local server?" ); then
-    # Remove SSH key pair
-    print_step "REMOVING SSH key pair ..."
-    rm -fv "${ssh_key_path}" "${ssh_key_path}.pub"
-    print_warning "The private + public keys have been removed from the local server."
-    print_warning "The public key must be MANUALLY removed from the REMOTE server's authorized_keys file for user '${remote_user}'"
-fi
-
 print_success "COMPLETED!"
+print_info "To delete SSH key pairs later, run: $0 --del-ssh-key"
 echo -e "\n${COLOR_BOLD_GREEN}========================================${COLOR_RESET}"
 echo -e "${COLOR_BOLD_GREEN}    Push operation completed!${COLOR_RESET}"
 echo -e "${COLOR_BOLD_GREEN}========================================${COLOR_RESET}\n"
