@@ -39,40 +39,41 @@ wp --info
 
 ## Installation
 
-1. Clone this repository or download the script:
-   ```bash
-   git clone https://github.com/WPNET/wp-push-remote.git
-   cd wp-push-remote
-   ```
+Clone the repository as root or with sudo to `/opt/`:
 
-2. Make the script executable:
-   ```bash
-   chmod +x wp-push-remote.sh
-   ```
+```bash
+sudo git clone https://github.com/WPNET/wp-push-remote.git /opt/wp-push-remote
+cd /opt/wp-push-remote
+sudo chmod +x wp-push-remote.sh
+```
+
+Install to site user directories:
+
+```bash
+sudo /opt/wp-push-remote/wp-push-remote.sh --install-for-user
+# Select from numbered list of sites in /sites/*/files/
+# Script installed as /sites/{domain}/wp-push-remote
+```
+
+**Important:** After installation, the script must ONLY be run as the site user, never as root. The push operations will not work correctly if run as root.
 
 ## Usage
 
-### Quick Start
+Switch to the site user and run from the site directory:
 
-**First time setup:**
 ```bash
-./wp-push-remote.sh --config
-# Configure source/remote paths once - settings saved automatically
-# URLs and table prefixes detected via WP-CLI
-```
-
-**Subsequent runs:**
-```bash
-./wp-push-remote.sh
-# Uses saved configuration - no re-entry needed!
+# As the site user (not root)
+cd /sites/yourdomain.com
+./wp-push-remote --config    # First time: configure settings
+./wp-push-remote              # Push to remote server
 ```
 
 ### Display Help
 
 ```bash
-./wp-push-remote.sh --help
+./wp-push-remote --help
 # or
-./wp-push-remote.sh -h
+./wp-push-remote -h
 ```
 
 ### Command-Line Options
@@ -81,9 +82,11 @@ wp --info
 
 - `-h, --help` - Show help message
 - `-u, --unattended` - Run in unattended mode (no prompts)
-- `-i, --interactive` - Run in interactive mode (default)
+- `-i, --install-for-user` - Install script to a user's site directory (skips push operation)
 - `-c, --config` - Configure source/remote settings (saves to `~/.wp-push-remote.conf`)
 - `-D, --del-ssh-key` - Delete SSH key pairs for remote user (skips push operation)
+- `-p, --install-plugins "LIST"` - Install plugins (space-delimited list)
+- `-r, --remote-cmds "CMD"` - Run custom commands on remote (quote the commands)
 
 #### Exclusions
 
@@ -100,8 +103,6 @@ Boolean flags (presence = enabled):
 - `--no-search-replace` - Skip wp search-replace
 - `--files-only` - Skip all database operations
 - `--no-db-import` - Don't import database on remote
-- `-p, --install-plugins "LIST"` - Install plugins (space-delimited list)
-- `-r, --remote-cmds "CMD"` - Run custom commands on remote (quote the commands)
 - `--exclude-wpconfig` - Exclude wp-config.php from rsync (default: yes)
 - `--no-exclude-wpconfig` - Include wp-config.php in sync
 - `--disable-wp-debug` - Temporarily disable WP_DEBUG during push
@@ -109,62 +110,33 @@ Boolean flags (presence = enabled):
 
 ### Examples
 
-#### First Time Configuration
 ```bash
-./wp-push-remote.sh --config
-# Prompts for source/remote paths with smart defaults
-# Saves to ~/.wp-push-remote.conf automatically
-```
+# Configure settings (first time)
+./wp-push-remote --config
 
-#### Run with Saved Configuration
-```bash
-./wp-push-remote.sh
-# Uses saved settings - ready to go!
-```
+# Push to remote (uses saved config)
+./wp-push-remote
 
-#### Install Plugins on Remote
-```bash
-./wp-push-remote.sh --install-plugins "woocommerce contact-form-7 wordpress-seo"
-```
+# Install plugins on remote
+./wp-push-remote --install-plugins "woocommerce contact-form-7"
 
-#### Files Only (No Database)
-```bash
-./wp-push-remote.sh --files-only
-```
+# Files only (no database)
+./wp-push-remote --files-only
 
-#### Unattended Mode with Exclusions
-```bash
-./wp-push-remote.sh -u -e "uploads cache .git"
-```
+# Unattended mode with exclusions
+./wp-push-remote -u -e "uploads cache .git"
 
-#### Skip Search-Replace
-```bash
-./wp-push-remote.sh --no-search-replace
-```
+# Skip search-replace
+./wp-push-remote --no-search-replace
 
-#### Use All Tables With Prefix for Search-Replace
-```bash
-./wp-push-remote.sh --all-tables-with-prefix
-```
+# Run custom commands on remote
+./wp-push-remote -r "wp plugin update --all"
 
-#### Run Custom Commands on Remote
-```bash
-./wp-push-remote.sh --remote-cmds "wp theme install twentytwenty"
-# or with short option
-./wp-push-remote.sh -r "wp plugin update --all"
-```
+# Delete SSH key pairs
+./wp-push-remote --del-ssh-key
 
-#### Delete SSH Key Pairs
-```bash
-./wp-push-remote.sh --del-ssh-key
-# Deletes SSH key pairs for the configured remote user
-# Shows details of deleted keys
-# Reminds you to manually remove public key from remote server
-```
-
-#### Combined Options
-```bash
-./wp-push-remote.sh --install-plugins "akismet jetpack" -e "uploads cache"
+# Combined options
+./wp-push-remote --install-plugins "akismet jetpack" -e "uploads cache"
 ```
 
 ## SSH Key Management
@@ -175,7 +147,7 @@ The script automatically generates SSH keys for secure authentication. After com
 
 To delete SSH key pairs:
 ```bash
-./wp-push-remote.sh --del-ssh-key
+./wp-push-remote --del-ssh-key
 ```
 
 This will:
@@ -194,13 +166,13 @@ Run `--config` once to save your settings to `~/.wp-push-remote.conf`. The confi
 
 ### What Gets Configured
 
-When you run `./wp-push-remote.sh --config`, you'll be prompted for:
+When you run `./wp-push-remote --config`, you'll be prompted for:
 - **Source path prefix**: e.g., `/sites/example.com/`
-- **Source webroot**: e.g., `files` or `public_html`
+- **Source webroot**: e.g., `files` or `files/public_html`
 - **Remote IP/hostname**: e.g., `192.168.1.100` or `staging.example.com`
 - **Remote user**: SSH username on remote server
 - **Remote path prefix**: e.g., `/sites/staging.example.com/`
-- **Remote webroot**: e.g., `files`
+- **Remote webroot**: e.g., `files` or `files/htdocs`
 
 ### Auto-Detection
 
@@ -218,6 +190,7 @@ The script automatically detects:
 ### Default Exclusions
 
 These paths are excluded by default:
+- `.git`
 - `.maintenance`
 - `wp-content/cache`
 - `wp-content/uploads/wp-migrate-db`
@@ -242,7 +215,7 @@ In unattended mode, mismatches are logged but no automatic changes are made (saf
 
 Install multiple plugins on the remote with a single command:
 ```bash
-./wp-push-remote.sh --install-plugins "plugin-slug1 plugin-slug2 plugin-slug3"
+./wp-push-remote --install-plugins "plugin-slug1 plugin-slug2 plugin-slug3"
 ```
 
 Plugins are installed after database operations and cache is flushed automatically.
