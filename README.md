@@ -1,6 +1,6 @@
 # WP Push Remote
 
-A powerful bash script to push WordPress sites from a SOURCE server to a REMOTE server using WP-CLI and rsync. Optimized for Ubuntu 24.04 LTS and higher.
+A powerful bash script to push WordPress sites from a SOURCE server to a REMOTE server using WP-CLI and rsync. Optimized for Ubuntu 22.04 LTS and higher.
 
 ## Features
 
@@ -12,7 +12,6 @@ A powerful bash script to push WordPress sites from a SOURCE server to a REMOTE 
 - 🔐 **Modern SSH Keys**: Ed25519 key generation for better security
 - ⚙️ **Multiple Modes**: Interactive, unattended, and files-only modes
 - 🔄 **Table Prefix Sync**: Automatic detection and synchronization of mismatched prefixes
-- 📝 **Systemd Integration**: Automatic logging to systemd journal
 
 ## Requirements
 
@@ -22,7 +21,7 @@ A powerful bash script to push WordPress sites from a SOURCE server to a REMOTE 
 - **rsync**: For file synchronization (usually pre-installed)
 - **openssh-client**: For SSH connectivity (usually pre-installed)
 
-### Installing Requirements on Ubuntu 22.04
+### Installing Requirements on Ubuntu 22.04+
 
 ```bash
 # Install openssh-client and rsync if not present
@@ -309,24 +308,10 @@ If not installed, follow the [WP-CLI installation guide](https://wp-cli.org/#ins
 ## Security Considerations
 
 - **wp-config.php**: Excluded by default to prevent overwriting remote configuration
-- **SSH Keys**: Ed25519 keys (preferred) for better security on Ubuntu 24.04+
+- **SSH Keys**: Ed25519 keys (preferred) for better security on Ubuntu 22.04+
 - **Database Cleanup**: Temporary SQL files cleaned up after import
 - **Unattended Mode**: Use cautiously - skips confirmations
-- **Systemd Logging**: All operations logged for audit trail
 - **Table Prefix Sync**: Requires confirmation before resetting remote database
-
-### Viewing Logs
-
-```bash
-# View all logs
-journalctl -t wp-push-remote
-
-# Follow in real-time
-journalctl -t wp-push-remote -f
-
-# Today's logs only
-journalctl -t wp-push-remote --since today
-```
 
 ## Contributing
 
@@ -359,9 +344,8 @@ This script is provided as-is for use in WordPress deployments.
   - Colorized output for better UX
   - Boolean flag syntax
   - Custom exclusion support
-  - Ubuntu 24.04+ optimizations
+  - Ubuntu 22.04+ compatibility
   - Ed25519 SSH key support
-  - Systemd journal logging
   - Enhanced validation
   - Automatic cleanup on interruption
   
@@ -373,8 +357,7 @@ For issues, questions, or suggestions, please open an issue on GitHub.
 
 ## Notes
 
-- This script is optimized for Ubuntu 24.04 LTS and higher
-- It uses modern bash features (5.1+) and Ubuntu-specific tools
+- This script is optimized for Ubuntu 22.04 LTS and higher
+- It uses modern bash features (5.0+) and Ubuntu-specific tools
 - SSH keys are generated using Ed25519 algorithm for better performance
-- All operations are logged to systemd journal for audit purposes
 - The script validates the environment before execution

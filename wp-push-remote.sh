@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Ubuntu 24.04+ optimized script
-# Requires: bash 5.1+, WP-CLI, rsync, openssh-client
+# Ubuntu 22.04+ compatible script
+# Requires: bash 5.0+, WP-CLI, rsync, openssh-client
 
-# Check bash version (require 5.1+ for Ubuntu 24.04)
-if ((BASH_VERSINFO[0] < 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] < 1))); then
-    echo "ERROR: This script requires Bash 5.1 or higher (current: $BASH_VERSION)"
-    echo "Ubuntu 24.04 should have bash 5.2+ by default."
+# Check bash version (require 5.0+ for Ubuntu 22.04+)
+if ((BASH_VERSINFO[0] < 5)); then
+    echo "ERROR: This script requires Bash 5.0 or higher (current: $BASH_VERSION)"
+    echo "Ubuntu 22.04+ should have bash 5.1+ by default."
     exit 1
 fi
 
@@ -15,7 +15,7 @@ script_version="2.0.5"
 # Description:  Push a site from SOURCE server to REMOTE. Run this script from the SOURCE server.
 # Requirements: WP-CLI installed on source and remote
 #               wp-cli.yml to be configured in the source and remote site owner's home directory, with the correct path to the WP installation
-# Target OS:    Ubuntu 24.04 LTS or higher
+# Target OS:    Ubuntu 22.04 LTS or higher
 
 ####################################################################################
 # COLOR DEFINITIONS FOR BETTER UX
@@ -57,36 +57,29 @@ fi
 # HELPER FUNCTIONS
 ####################################################################################
 
-# Print functions with optional systemd journal logging
+# Print functions
 print_header() {
     echo -e "\n${COLOR_BOLD_CYAN}==== $1 ====${COLOR_RESET}"
-    # Log to systemd journal if available
-    command -v logger >/dev/null 2>&1 && logger -t wp-push-remote "$1"
 }
 
 print_info() {
     echo -e "${COLOR_CYAN}[INFO]${COLOR_RESET} $1"
-    command -v logger >/dev/null 2>&1 && logger -t wp-push-remote -p user.info "$1"
 }
 
 print_success() {
     echo -e "${COLOR_BOLD_GREEN}[SUCCESS]${COLOR_RESET} $1"
-    command -v logger >/dev/null 2>&1 && logger -t wp-push-remote -p user.notice "$1"
 }
 
 print_warning() {
     echo -e "${COLOR_BOLD_YELLOW}[WARNING]${COLOR_RESET} $1"
-    command -v logger >/dev/null 2>&1 && logger -t wp-push-remote -p user.warning "$1"
 }
 
 print_error() {
     echo -e "${COLOR_RED}[ERROR]${COLOR_RESET} $1"
-    command -v logger >/dev/null 2>&1 && logger -t wp-push-remote -p user.err "$1"
 }
 
 print_step() {
     echo -e "\n${COLOR_BOLD_BLUE}++++ $1${COLOR_RESET}"
-    command -v logger >/dev/null 2>&1 && logger -t wp-push-remote "$1"
 }
 
 # Help function
@@ -327,7 +320,7 @@ validate_config() {
     
     # Check OS (Ubuntu only)
     if [[ ! -f /etc/os-release ]]; then
-        print_error "Cannot detect OS. This script is designed for Ubuntu 24.04+."
+        print_error "Cannot detect OS. This script is designed for Ubuntu 22.04+."
         errors=$((errors + 1))
     else
         source /etc/os-release
@@ -339,7 +332,7 @@ validate_config() {
             local version_major="${VERSION_ID%%.*}"
             local version_minor="${VERSION_ID#*.}"
             if (( version_major < 24 || (version_major == 24 && ${version_minor%%.*} < 4) )); then
-                print_warning "This script is optimized for Ubuntu 24.04+. Detected: Ubuntu $VERSION_ID"
+                print_warning "This script is optimized for Ubuntu 22.04+. Detected: Ubuntu $VERSION_ID"
             fi
         fi
     fi
@@ -408,7 +401,7 @@ command_exists() {
 
 # Generate random string using Ubuntu's tools
 generate_random_string() {
-    # Ubuntu 24.04 has md5sum by default
+    # Ubuntu 22.04+ has md5sum by default
     echo "$RANDOM" | md5sum | head -c 12
 }
 
@@ -773,8 +766,8 @@ fi
 if [[ -z "$ssh_key_path" ]]; then
     if [[ $unattended_mode -eq 0 ]]; then
         if ( user_prompt "No SSH key found - OK to generate one now?" ); then
-            # Generate SSH key (ed25519 is preferred on Ubuntu 24.04+ for better performance and security)
-            print_info "Generating Ed25519 SSH key (recommended for Ubuntu 24.04+)..."
+            # Generate SSH key (ed25519 is preferred on Ubuntu 22.04+ for better performance and security)
+            print_info "Generating Ed25519 SSH key (recommended for Ubuntu 22.04+)..."
             if ssh-keygen -t ed25519 -C "${current_user}@${local_ip} - Added by wp-push-remote.sh" -f ~/.ssh/id_ed25519_remote_${remote_user} -N ""; then
                 # Set proper permissions
                 chmod 600 ~/.ssh/id_ed25519_remote_${remote_user}
