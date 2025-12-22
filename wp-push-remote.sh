@@ -947,10 +947,10 @@ fi
 if (( ${do_search_replace} == 1 && ${files_only} == 0 && ${no_db_import} == 0 )); then
 
 # Run search-replace for URLs if both are available
-if [[ -n "${wp_search_replace_source_url}" && -n "\$wp_search_replace_remote_url" ]]; then
+if [[ -n "${wp_search_replace_source_url}" && -n "${wp_search_replace_remote_url}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for URLs ...${COLOR_RESET}"
-echo "Replacing: ${wp_search_replace_source_url} -> \$wp_search_replace_remote_url"
-wp search-replace --precise "${wp_search_replace_source_url}" "\$wp_search_replace_remote_url" --report-changed-only --format=table --path="${remote_path}"
+echo "Replacing: ${wp_search_replace_source_url} -> ${wp_search_replace_remote_url}"
+wp search-replace --precise "${wp_search_replace_source_url}" "${wp_search_replace_remote_url}" --report-changed-only --format=table --path="${remote_path}"
 else
 echo -e "${COLOR_YELLOW}[WARNING] Skipping URL search-replace - source or remote URL not available${COLOR_RESET}"
 fi
