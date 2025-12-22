@@ -995,6 +995,12 @@ echo -e "${COLOR_BLUE}FLUSHING WP cache ...${COLOR_RESET}"
 wp cache flush --hard --path="${remote_path}"
 fi
 
+if (( ${install_plugins} == 1 )) && [[ -n "${plugins_to_install}" ]]; then
+echo -e "\n${COLOR_BLUE}INSTALLING plugins on remote ...${COLOR_RESET}"
+wp plugin install ${plugins_to_install} --path="${remote_path}"
+wp cache flush --path="${remote_path}"
+fi
+
 if [[ -n "${remote_commands}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING custom commands on remote ...${COLOR_RESET}"
 # Run custom commands passed via --remote-cmds
@@ -1014,12 +1020,6 @@ done
 # this runs a url_replace with Elementor
 #echo -e "\n${COLOR_BLUE}Running Elementor replace_urls on remote server ...${COLOR_RESET}"
 #wp elementor replace_urls https:${wp_search_replace_source_url} https:${wp_search_replace_remote_url} --path="${remote_path}"
-fi
-
-if (( ${install_plugins} == 1 )) && [[ -n "${plugins_to_install}" ]]; then
-echo -e "\n${COLOR_BLUE}INSTALLING plugins on remote ...${COLOR_RESET}"
-wp plugin install ${plugins_to_install} --path="${remote_path}"
-wp cache flush --path="${remote_path}"
 fi
 
 if (( ${disable_wp_debug} == 1 )); then
