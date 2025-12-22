@@ -842,28 +842,27 @@ echo -e "${COLOR_BLUE}Disabling WP_DEBUG in wp-config.php ...${COLOR_RESET}"
 sed -i "s/define(\s*'WP_DEBUG'.*/define('WP_DEBUG', false);/g" ${remote_path}/wp-config.php
 fi
 
+# Detect remote URL BEFORE database import (while remote WordPress is still intact)
+if (( ${do_search_replace} == 1 && ${files_only} == 0 && ${no_db_import} == 0 )); then
+if [[ -z "${wp_search_replace_remote_url}" ]]; then
+  echo -e "${COLOR_BLUE}Detecting remote site URL before import...${COLOR_RESET}"
+  wp_search_replace_remote_url=\$(wp option get siteurl --path="${remote_path}" 2>/dev/null || echo "")
+  if [[ -n "\$wp_search_replace_remote_url" ]]; then
+    echo "Remote URL detected: \$wp_search_replace_remote_url"
+  else
+    echo -e "${COLOR_YELLOW}Unable to detect remote URL - search-replace may not work correctly${COLOR_RESET}"
+  fi
+fi
+fi
+
 if (( ${files_only} == 0 && ${no_db_import} == 0 )); then
-echo -e "${COLOR_BLUE}IMPORTING database ...${COLOR_RESET}"
+echo -e "\n${COLOR_BLUE}IMPORTING database ...${COLOR_RESET}"
 wp db import ${remote_path}/${source_db_name} --path="${remote_path}"
 echo -e "\n${COLOR_BLUE}DELETING imported database source file ...${COLOR_RESET}"
 rm -v ${remote_path}/${source_db_name}
 fi
 
 if (( ${do_search_replace} == 1 && ${files_only} == 0 && ${no_db_import} == 0 )); then
-# Detect URLs from database if not set
-if [[ -z "${wp_search_replace_source_url}" ]]; then
-  echo -e "${COLOR_BLUE}Detecting source site URL from configuration...${COLOR_RESET}"
-  wp_search_replace_source_url="${wp_search_replace_source_url}"
-fi
-if [[ -z "${wp_search_replace_remote_url}" ]]; then
-  echo -e "${COLOR_BLUE}Detecting remote site URL from database...${COLOR_RESET}"
-  wp_search_replace_remote_url=\$(wp option get siteurl --path="${remote_path}" 2>/dev/null || echo "")
-  if [[ -n "\$wp_search_replace_remote_url" ]]; then
-    echo "Remote URL detected: \$wp_search_replace_remote_url"
-  else
-    echo "Unable to detect remote URL"
-  fi
-fi
 
 # Run search-replace for URLs if both are available
 if [[ -n "${wp_search_replace_source_url}" && -n "\$wp_search_replace_remote_url" ]]; then
