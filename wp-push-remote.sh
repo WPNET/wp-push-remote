@@ -993,7 +993,12 @@ fi
 if [[ -n "${remote_commands}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING custom commands on remote ...${COLOR_RESET}"
 # Run custom commands passed via --remote-cmds
-${remote_commands}
+# If the command starts with 'wp' and doesn't contain --path, add it automatically
+if [[ "${remote_commands}" =~ ^wp[[:space:]] ]] && [[ ! "${remote_commands}" =~ --path ]]; then
+    ${remote_commands} --path="${remote_path}"
+else
+    ${remote_commands}
+fi
 # Use for running custom commands on the remote, after DB import and search-replace, for example:
 # this runs a url_replace with Elementor
 #echo -e "\n${COLOR_BLUE}Running Elementor replace_urls on remote server ...${COLOR_RESET}"
