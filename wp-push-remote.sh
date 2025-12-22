@@ -892,9 +892,7 @@ if (( files_only == 0 && no_db_import == 0 )); then
         if (( unattended_mode == 0 )); then
             if ( user_prompt "Synchronize remote table prefix to match source?" ); then
                 print_step "Resetting remote database and updating table prefix ..."
-                ssh -q -t -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << SYNC_EOF
-# Ensure proper terminal environment for WP-CLI
-export TERM=\${TERM:-xterm-256color}
+                ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << SYNC_EOF
 wp db reset --yes --path="${remote_path}"
 wp config set table_prefix "${source_table_prefix}" --path="${remote_path}"
 echo "Table prefix synchronized: ${source_table_prefix}"
@@ -919,9 +917,7 @@ fi
 
 # Connect to remote and run local commands
 print_step "EXECUTING post-deployment commands on REMOTE (${remote_ip_address})..."
-ssh -q -t -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << EOF
-# Ensure proper terminal environment for WP-CLI table formatting
-export TERM=\${TERM:-xterm-256color}
+ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << EOF
 shopt -s dotglob
 echo -e "\n${COLOR_CYAN}Connected to REMOTE: \$(whoami)@\$(hostname) (\$(hostname -I))${COLOR_RESET}"
 
@@ -947,7 +943,8 @@ if (( ${do_search_replace} == 1 && ${files_only} == 0 && ${no_db_import} == 0 ))
 if [[ -n "${wp_search_replace_source_url}" && -n "${wp_search_replace_remote_url}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for URLs ...${COLOR_RESET}"
 echo "Replacing: ${wp_search_replace_source_url} -> ${wp_search_replace_remote_url}"
-wp search-replace --precise "${wp_search_replace_source_url}" "${wp_search_replace_remote_url}" --report-changed-only --format=table --path="${remote_path}"
+replacement_count=\$(wp search-replace --precise "${wp_search_replace_source_url}" "${wp_search_replace_remote_url}" --report-changed-only --format=count --path="${remote_path}")
+echo "Total replacements made: \${replacement_count}"
 else
 echo -e "${COLOR_YELLOW}[WARNING] Skipping URL search-replace - source or remote URL not available${COLOR_RESET}"
 fi
@@ -956,7 +953,8 @@ fi
 if [[ -n "${wp_search_replace_source_path}" && -n "${wp_search_replace_remote_path}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for file PATHs ...${COLOR_RESET}"
 echo "Replacing: ${wp_search_replace_source_path} -> ${wp_search_replace_remote_path}"
-wp search-replace --precise "${wp_search_replace_source_path}" "${wp_search_replace_remote_path}" --report-changed-only --format=table --path="${remote_path}"
+replacement_count=\$(wp search-replace --precise "${wp_search_replace_source_path}" "${wp_search_replace_remote_path}" --report-changed-only --format=count --path="${remote_path}")
+echo "Total replacements made: \${replacement_count}"
 else
 echo -e "${COLOR_YELLOW}[WARNING] Skipping path search-replace - source or remote path not available${COLOR_RESET}"
 fi
