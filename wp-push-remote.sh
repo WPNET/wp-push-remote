@@ -999,12 +999,18 @@ fi
 if [[ -n "${remote_commands}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING custom commands on remote ...${COLOR_RESET}"
 # Run custom commands passed via --remote-cmds
-# If the command starts with 'wp' and doesn't contain --path, add it automatically
-if [[ "${remote_commands}" =~ ^wp[[:space:]] ]] && [[ ! "${remote_commands}" =~ --path ]]; then
-    ${remote_commands} --path="${remote_path}"
-else
-    ${remote_commands}
-fi
+# Split commands by semicolon and process each one
+IFS=';' read -ra CMD_ARRAY <<< "${remote_commands}"
+for cmd in "\${CMD_ARRAY[@]}"; do
+    # Trim leading/trailing whitespace
+    cmd=\$(echo "\$cmd" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*\$//')
+    # If the command starts with 'wp' and doesn't contain --path, add it automatically
+    if [[ "\$cmd" =~ ^wp[[:space:]] ]] && [[ ! "\$cmd" =~ --path ]]; then
+        eval "\$cmd --path=${remote_path}"
+    else
+        eval "\$cmd"
+    fi
+done
 # Use for running custom commands on the remote, after DB import and search-replace, for example:
 # this runs a url_replace with Elementor
 #echo -e "\n${COLOR_BLUE}Running Elementor replace_urls on remote server ...${COLOR_RESET}"
