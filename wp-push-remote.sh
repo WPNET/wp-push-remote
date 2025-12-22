@@ -892,7 +892,7 @@ if (( files_only == 0 && no_db_import == 0 )); then
         if (( unattended_mode == 0 )); then
             if ( user_prompt "Synchronize remote table prefix to match source?" ); then
                 print_step "Resetting remote database and updating table prefix ..."
-                ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << SYNC_EOF
+                ssh -q -t -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << SYNC_EOF
 wp db reset --yes --path="${remote_path}"
 wp config set table_prefix "${source_table_prefix}" --path="${remote_path}"
 echo "Table prefix synchronized: ${source_table_prefix}"
@@ -917,7 +917,7 @@ fi
 
 # Connect to remote and run local commands
 print_step "EXECUTING post-deployment commands on REMOTE (${remote_ip_address})..."
-ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << EOF
+ssh -q -t -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} << EOF
 shopt -s dotglob
 echo -e "\n${COLOR_CYAN}Connected to REMOTE: \$(whoami)@\$(hostname) (\$(hostname -I))${COLOR_RESET}"
 
