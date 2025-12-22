@@ -81,7 +81,7 @@ wp --info
 
 - `-h, --help` - Show help message
 - `-u, --unattended` - Run in unattended mode (no prompts)
-- `-i, --interactive` - Run in interactive mode (default)
+- `-i, --install-for-user` - Install script to a user's site directory (skips push operation)
 - `-c, --config` - Configure source/remote settings (saves to `~/.wp-push-remote.conf`)
 - `-D, --del-ssh-key` - Delete SSH key pairs for remote user (skips push operation)
 
@@ -160,6 +160,16 @@ Boolean flags (presence = enabled):
 # Deletes SSH key pairs for the configured remote user
 # Shows details of deleted keys
 # Reminds you to manually remove public key from remote server
+```
+
+#### Install Script for a User
+```bash
+./wp-push-remote.sh --install-for-user
+# Searches for WordPress installations in /sites/*/files/
+# Presents a numbered list of available sites
+# Copies the script to the selected site directory as 'wp-push-remote'
+# Sets proper ownership and executable permissions
+# The installed copy has --install-for-user disabled
 ```
 
 #### Combined Options

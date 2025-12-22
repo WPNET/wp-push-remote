@@ -93,7 +93,7 @@ show_help() {
     echo -e "${COLOR_BOLD_GREEN}OPTIONS:${COLOR_RESET}"
     echo -e "    ${COLOR_YELLOW}-h, --help${COLOR_RESET}                   Show this help message"
     echo -e "    ${COLOR_YELLOW}-u, --unattended${COLOR_RESET}             Run in unattended mode (no prompts)"
-    echo -e "    ${COLOR_YELLOW}-i, --interactive${COLOR_RESET}            Run in interactive mode (default)"
+    echo -e "    ${COLOR_YELLOW}-i, --install-for-user${COLOR_RESET}       Install script to a user's site directory (skips push operation)"
     echo -e "    ${COLOR_YELLOW}-c, --config${COLOR_RESET}                 Prompt for all configuration settings"
     echo -e "    ${COLOR_YELLOW}-D, --del-ssh-key${COLOR_RESET}            Delete SSH key pairs for remote user (skips push operation)"
     echo ""
@@ -184,6 +184,7 @@ disable_wp_debug=0     # disable WP_DEBUG on remote for the duration of the push
 prompt_config=0        # flag to prompt for configuration
 delete_ssh_keys=0      # flag to delete SSH key pairs
 all_tables_with_prefix=0  # use --all-tables-with-prefix option for wp search-replace commands
+install_for_user=0     # flag to install script for a user
 
 # Load saved configuration if it exists
 load_config() {
@@ -267,6 +268,109 @@ delete_ssh_key_pairs() {
         print_warning "  Remote location: ~/.ssh/authorized_keys"
         print_warning "  Look for keys with 'remote_${remote_user}' in the comment"
     fi
+    
+    exit 0
+}
+
+# Function to install script for a user
+install_for_user() {
+    print_header "INSTALL SCRIPT FOR USER"
+    
+    print_info "Searching for WordPress installations in /sites/*/files/ ..."
+    
+    # Find all directories that match the pattern /sites/*/files/
+    local sites=()
+    while IFS= read -r -d '' files_dir; do
+        # Get the parent directory (one level above files)
+        local site_dir=$(dirname "$files_dir")
+        # Only add if it's a valid path structure
+        if [[ -d "$site_dir" ]]; then
+            sites+=("$site_dir")
+        fi
+    done < <(find /sites -maxdepth 2 -type d -name "files" -print0 2>/dev/null)
+    
+    if [[ ${#sites[@]} -eq 0 ]]; then
+        print_error "No sites found in /sites/*/files/ pattern"
+        exit 1
+    fi
+    
+    print_success "Found ${#sites[@]} site(s)"
+    echo ""
+    print_info "Select installation location:"
+    echo ""
+    
+    # Display numbered list
+    for i in "${!sites[@]}"; do
+        echo "  $((i+1)). ${sites[$i]}"
+    done
+    
+    echo ""
+    read -p "$(echo -e "${COLOR_CYAN}Enter the number of your choice:${COLOR_RESET} ")" choice
+    
+    # Validate input
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [[ $choice -lt 1 ]] || [[ $choice -gt ${#sites[@]} ]]; then
+        print_error "Invalid selection"
+        exit 1
+    fi
+    
+    local selected_site="${sites[$((choice-1))]}"
+    local install_path="${selected_site}/wp-push-remote"
+    
+    print_step "Installing script to: ${install_path}"
+    
+    # Get the script path (the currently running script)
+    local script_path="$(readlink -f "$0")"
+    
+    # Create a temporary copy with the install-for-user option disabled
+    local temp_script="/tmp/wp-push-remote-temp-$$.sh"
+    
+    # Copy the script and comment out the install-for-user option handling
+    # We'll use sed to replace the option parsing lines for -i|--install-for-user
+    print_info "Creating modified version of script (with --install-for-user disabled)..."
+    
+    # Copy the script and modify it to disable the install-for-user option
+    sed 's/^\( *\)-i|--install-for-user)/# \1-i|--install-for-user) # DISABLED IN INSTALLED VERSION/' "$script_path" > "$temp_script"
+    
+    # Now copy the modified script to the target location
+    if cp "$temp_script" "$install_path"; then
+        print_success "Script copied to ${install_path}"
+    else
+        print_error "Failed to copy script"
+        rm -f "$temp_script"
+        exit 1
+    fi
+    
+    # Clean up temp file
+    rm -f "$temp_script"
+    
+    # Extract site owner from the path (assuming /sites/domain/ ownership)
+    local site_owner
+    site_owner=$(stat -c '%U' "$selected_site" 2>/dev/null)
+    
+    if [[ -z "$site_owner" ]]; then
+        print_warning "Could not detect site owner, using current user"
+        site_owner=$(whoami)
+    fi
+    
+    print_info "Setting ownership to ${site_owner}:${site_owner}"
+    if chown "${site_owner}:${site_owner}" "$install_path" 2>/dev/null; then
+        print_success "Ownership set successfully"
+    else
+        print_warning "Failed to set ownership (may require sudo)"
+        print_info "You may need to run: sudo chown ${site_owner}:${site_owner} ${install_path}"
+    fi
+    
+    print_info "Setting executable permission"
+    if chmod +x "$install_path"; then
+        print_success "Executable permission set"
+    else
+        print_error "Failed to set executable permission"
+        exit 1
+    fi
+    
+    print_success "Installation complete!"
+    print_info "Script installed at: ${install_path}"
+    print_info "User can now run: ${install_path}"
     
     exit 0
 }
@@ -495,7 +599,7 @@ function prompt_for_config() {
 ####################################################################################
 
 # Parse long options
-TEMP=$(getopt -o huicDe:r:p: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,remote-cmds:,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug,all-tables-with-prefix -n "$0" -- "$@" 2>/dev/null)
+TEMP=$(getopt -o huicDe:r:p: --long help,unattended,install-for-user,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,remote-cmds:,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug,all-tables-with-prefix -n "$0" -- "$@" 2>/dev/null)
 
 # Check for getopt errors
 if [[ $? -ne 0 ]]; then
@@ -509,8 +613,8 @@ if [[ $? -ne 0 ]]; then
                 unattended_mode=1
                 shift
                 ;;
-            -i|--interactive)
-                unattended_mode=0
+            -i|--install-for-user)
+                install_for_user=1
                 shift
                 ;;
             -c|--config)
@@ -599,8 +703,8 @@ else
                 unattended_mode=1
                 shift
                 ;;
-            -i|--interactive)
-                unattended_mode=0
+            -i|--install-for-user)
+                install_for_user=1
                 shift
                 ;;
             -c|--config)
@@ -694,6 +798,11 @@ fi
 # Handle SSH key deletion if requested
 if [[ $delete_ssh_keys -eq 1 ]]; then
     delete_ssh_key_pairs
+fi
+
+# Handle install-for-user if requested
+if [[ $install_for_user -eq 1 ]]; then
+    install_for_user
 fi
 
 # Normalize paths
