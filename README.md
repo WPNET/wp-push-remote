@@ -16,10 +16,8 @@ A powerful bash script to push WordPress sites from a SOURCE server to a REMOTE 
 
 ## Requirements
 
-- **Operating System**: Ubuntu 24.04 LTS or higher (both source and remote)
-- **Bash**: Version 5.1+ (included in Ubuntu 24.04)
+- **Operating System**: Ubuntu 22.04 LTS or higher (both source and remote)
 - **WP-CLI**: Must be installed on both source and remote servers
-- **wp-cli.yml**: Configured in home directory with correct WP installation path
 - **SSH Access**: SSH access to the remote server
 - **rsync**: For file synchronization (usually pre-installed)
 - **openssh-client**: For SSH connectivity (usually pre-installed)
