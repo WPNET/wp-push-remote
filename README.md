@@ -100,7 +100,7 @@ Boolean flags (presence = enabled):
 - `--no-search-replace` - Skip wp search-replace
 - `--files-only` - Skip all database operations
 - `--no-db-import` - Don't import database on remote
-- `--install-plugins "LIST"` - Install plugins (space-delimited list)
+- `-p, --install-plugins "LIST"` - Install plugins (space-delimited list)
 - `-r, --remote-cmds "CMD"` - Run custom commands on remote (quote the commands)
 - `--exclude-wpconfig` - Exclude wp-config.php from rsync (default: yes)
 - `--no-exclude-wpconfig` - Include wp-config.php in sync

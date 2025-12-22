@@ -495,7 +495,7 @@ function prompt_for_config() {
 ####################################################################################
 
 # Parse long options
-TEMP=$(getopt -o huicDe:r: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,remote-cmds:,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug,all-tables-with-prefix -n "$0" -- "$@" 2>/dev/null)
+TEMP=$(getopt -o huicDe:r:p: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,remote-cmds:,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug,all-tables-with-prefix -n "$0" -- "$@" 2>/dev/null)
 
 # Check for getopt errors
 if [[ $? -ne 0 ]]; then
@@ -547,7 +547,7 @@ if [[ $? -ne 0 ]]; then
                 no_db_import=1
                 shift
                 ;;
-            --install-plugins)
+            -p|--install-plugins)
                 if [[ -z "$2" ]]; then
                     print_error "--install-plugins requires a space-delimited list of plugins"
                     exit 1
@@ -633,7 +633,7 @@ else
                 no_db_import=1
                 shift
                 ;;
-            --install-plugins)
+            -p|--install-plugins)
                 plugins_to_install="$2"
                 install_plugins=1
                 shift 2
