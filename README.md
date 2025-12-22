@@ -6,17 +6,13 @@ A powerful bash script to push WordPress sites from a SOURCE server to a REMOTE 
 
 - 🚀 **One-Time Configuration**: Configure once with `--config`, settings saved automatically
 - 🎯 **Smart Auto-Detection**: URLs and table prefixes detected via WP-CLI
-- 🎨 **Colorized Output**: Beautiful, user-friendly terminal interface
-- 🔧 **Boolean Flags**: Simple CLI with `--files-only` instead of `--files-only 1`
 - 📁 **Custom Exclusions**: Space-delimited exclusion lists via `-e` flag
 - 🔌 **Plugin Installation**: Install multiple plugins with `--install-plugins "plugin1 plugin2"`
 - 🔄 **Database Migration**: Automatic export, transfer, import, and search-replace
-- 🔍 **WP-CLI Best Practices**: Uses `wp db prefix` for reliable prefix detection
 - 🔐 **Modern SSH Keys**: Ed25519 key generation for better security
 - ⚙️ **Multiple Modes**: Interactive, unattended, and files-only modes
 - 🔄 **Table Prefix Sync**: Automatic detection and synchronization of mismatched prefixes
 - 📝 **Systemd Integration**: Automatic logging to systemd journal
-- 🛡️ **Ubuntu Optimized**: Best practices for Ubuntu 24.04 LTS+
 
 ## Requirements
 
