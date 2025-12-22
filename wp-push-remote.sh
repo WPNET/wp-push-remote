@@ -333,17 +333,17 @@ install_for_user() {
     # Use awk to replace the install-for-user case blocks with error messages
     # This handles both occurrences (in fallback and main getopt parsing)
     awk '
-    /^[[:space:]]*-i[|]--install-for-user\)/ {
-        indent = match($0, /[^ ]/)
-        spaces = substr($0, 1, indent-1)
+    /^[[:space:]]*-i\|--install-for-user\)/ {
+        # Capture the leading whitespace for proper indentation
+        match($0, /^[[:space:]]*/)
+        saved_indent = substr($0, 1, RLENGTH)
         print $0 " # DISABLED IN INSTALLED VERSION"
         in_install_block = 1
-        saved_indent = spaces
         next
     }
     in_install_block && /^[[:space:]]*;;$/ {
-        print saved_indent "print_error \"The --install-for-user option is disabled in this installed copy\""
-        print saved_indent "exit 1"
+        print saved_indent "    print_error \"The --install-for-user option is disabled in this installed copy\""
+        print saved_indent "    exit 1"
         print $0
         in_install_block = 0
         next
