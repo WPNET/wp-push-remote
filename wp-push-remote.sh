@@ -882,7 +882,7 @@ if (( files_only == 0 && no_db_import == 0 )); then
     fi
     
     # Get remote table prefix using wp-cli via SSH
-    remote_table_prefix=$(ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address}" "wp db prefix --path='${remote_path}' 2>/dev/null" | tr -d '\n')
+    remote_table_prefix=$(ssh -q -T -i "${ssh_key_path}" ${remote_user}@${remote_ip_address} "wp db prefix --path='${remote_path}' 2>/dev/null" | tr -d '\n')
     if [[ -z "$remote_table_prefix" ]]; then
         print_warning "Unable to detect remote table prefix"
     else
