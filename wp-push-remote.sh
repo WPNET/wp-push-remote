@@ -348,10 +348,17 @@ install_for_user() {
         in_install_block = 1
         next
     }
-    in_install_block && /^[[:space:]]*;;$/ {
-        # Use the same indentation as the next line in the case block
-        print saved_indent "                print_error \"The --install-for-user option is disabled in this installed copy\""
-        print saved_indent "                exit 1"
+    in_install_block && /^[[:space:]]*install_for_user=1/ {
+        # Capture the indentation of content lines
+        match($0, /^[[:space:]]*/)
+        content_indent = substr($0, 1, RLENGTH)
+        in_install_block = 2
+        next
+    }
+    in_install_block == 2 && /^[[:space:]]*;;$/ {
+        # Use the captured content indentation
+        print content_indent "print_error \"The --install-for-user option is disabled in this installed copy\""
+        print content_indent "exit 1"
         print $0
         in_install_block = 0
         next
@@ -374,7 +381,14 @@ install_for_user() {
     
     # Extract site owner from the path (assuming /sites/domain/ ownership)
     local site_owner
-    site_owner=$(stat -c '%U' "$selected_site" 2>/dev/null)
+    # Try GNU stat first, then BSD stat format
+    if stat -c '%U' "$selected_site" >/dev/null 2>&1; then
+        site_owner=$(stat -c '%U' "$selected_site")
+    elif stat -f '%Su' "$selected_site" >/dev/null 2>&1; then
+        site_owner=$(stat -f '%Su' "$selected_site")
+    else
+        site_owner=""
+    fi
     
     if [[ -z "$site_owner" ]]; then
         print_warning "Could not detect site owner, using current user"
