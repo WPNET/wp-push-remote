@@ -322,21 +322,28 @@ install_for_user() {
     local script_path="$(readlink -f "$0")"
     
     # Create a temporary copy with the install-for-user option disabled
-    local temp_script="/tmp/wp-push-remote-temp-$$.sh"
+    local temp_script=$(mktemp) || {
+        print_error "Failed to create temporary file"
+        exit 1
+    }
     
     # Copy the script and replace the install-for-user option with a disabled version
     print_info "Creating modified version of script (with --install-for-user disabled)..."
     
     # Use awk to replace the install-for-user case blocks with error messages
+    # This handles both occurrences (in fallback and main getopt parsing)
     awk '
-    /^[[:space:]]*-i\|--install-for-user\)/ {
+    /^[[:space:]]*-i[|]--install-for-user\)/ {
+        indent = match($0, /[^ ]/)
+        spaces = substr($0, 1, indent-1)
         print $0 " # DISABLED IN INSTALLED VERSION"
         in_install_block = 1
+        saved_indent = spaces
         next
     }
     in_install_block && /^[[:space:]]*;;$/ {
-        print "                print_error \"The --install-for-user option is disabled in this installed copy\""
-        print "                exit 1"
+        print saved_indent "print_error \"The --install-for-user option is disabled in this installed copy\""
+        print saved_indent "exit 1"
         print $0
         in_install_block = 0
         next
