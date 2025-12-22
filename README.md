@@ -39,71 +39,33 @@ wp --info
 
 ## Installation
 
-### Recommended: System-Wide Installation
-
-For best results, clone the repository as root or a sudo user to a system location like `/opt/`:
+Clone the repository as root or with sudo to `/opt/`:
 
 ```bash
-# Clone as root or with sudo
 sudo git clone https://github.com/WPNET/wp-push-remote.git /opt/wp-push-remote
 cd /opt/wp-push-remote
 sudo chmod +x wp-push-remote.sh
 ```
 
-Then install the script into individual site user directories:
+Install to site user directories:
 
 ```bash
-# Install to a site user's directory
 sudo /opt/wp-push-remote/wp-push-remote.sh --install-for-user
-# Select from numbered list of available sites in /sites/*/files/
-# Script will be installed as /sites/{domain}/wp-push-remote
+# Select from numbered list of sites in /sites/*/files/
+# Script installed as /sites/{domain}/wp-push-remote
 ```
 
-**Benefits of this approach:**
-- Central script location for easy updates
-- Proper permissions for all site directories
-- Each site user gets their own copy
-- Installed copies cannot recursively install (disabled by design)
-
-### Alternative: User Installation
-
-If you prefer to run as a regular user:
-
-```bash
-git clone https://github.com/WPNET/wp-push-remote.git
-cd wp-push-remote
-chmod +x wp-push-remote.sh
-```
-
-**Note:** You may need sudo privileges for the `--install-for-user` option to set proper ownership on site directories.
+**Important:** After installation, the script must ONLY be run as the site user, never as root. The push operations will not work correctly if run as root.
 
 ## Usage
 
-### Quick Start
-
-**If installed system-wide (recommended):**
+Switch to the site user and run from the site directory:
 
 ```bash
-# As root/sudo, install to a site user's directory
-sudo /opt/wp-push-remote/wp-push-remote.sh --install-for-user
-
-# Then run from the site user's directory
+# As the site user (not root)
 cd /sites/yourdomain.com
 ./wp-push-remote --config    # First time: configure settings
-./wp-push-remote              # Subsequent runs: use saved config
-```
-
-**If running from cloned repository:**
-
-```bash
-# First time setup
-./wp-push-remote.sh --config
-# Configure source/remote paths once - settings saved automatically
-# URLs and table prefixes detected via WP-CLI
-
-# Subsequent runs
-./wp-push-remote.sh
-# Uses saved configuration - no re-entry needed!
+./wp-push-remote              # Push to remote server
 ```
 
 ### Display Help
@@ -148,85 +110,32 @@ Boolean flags (presence = enabled):
 
 ### Examples
 
-#### First Time Configuration
 ```bash
+# Configure settings (first time)
 ./wp-push-remote --config
-# Prompts for source/remote paths with smart defaults
-# Saves to ~/.wp-push-remote.conf automatically
-```
 
-#### Run with Saved Configuration
-```bash
+# Push to remote (uses saved config)
 ./wp-push-remote
-# Uses saved settings - ready to go!
-```
 
-#### Install Plugins on Remote
-```bash
-./wp-push-remote --install-plugins "woocommerce contact-form-7 wordpress-seo"
-```
+# Install plugins on remote
+./wp-push-remote --install-plugins "woocommerce contact-form-7"
 
-#### Files Only (No Database)
-```bash
+# Files only (no database)
 ./wp-push-remote --files-only
-```
 
-#### Unattended Mode with Exclusions
-```bash
+# Unattended mode with exclusions
 ./wp-push-remote -u -e "uploads cache .git"
-```
 
-#### Skip Search-Replace
-```bash
+# Skip search-replace
 ./wp-push-remote --no-search-replace
-```
 
-#### Use All Tables With Prefix for Search-Replace
-```bash
-./wp-push-remote --all-tables-with-prefix
-```
-
-#### Run Custom Commands on Remote
-```bash
-./wp-push-remote --remote-cmds "wp theme install twentytwenty"
-# or with short option
+# Run custom commands on remote
 ./wp-push-remote -r "wp plugin update --all"
-```
 
-#### Delete SSH Key Pairs
-```bash
+# Delete SSH key pairs
 ./wp-push-remote --del-ssh-key
-# Deletes SSH key pairs for the configured remote user
-# Shows details of deleted keys
-# Reminds you to manually remove public key from remote server
-```
 
-#### Install Script for a Site User
-
-Best practice: Clone to `/opt/` as root, then install to site directories:
-
-```bash
-# From system-wide installation
-sudo /opt/wp-push-remote/wp-push-remote.sh --install-for-user
-
-# Or from local clone
-./wp-push-remote.sh --install-for-user
-
-# Interactive prompt:
-# 1. /sites/example.com
-# 2. /sites/mysite.org
-# 3. /sites/another.com
-# Enter number: 1
-
-# Result:
-# - Script copied to /sites/example.com/wp-push-remote
-# - Ownership set to site user
-# - Executable permissions set
-# - --install-for-user option disabled in the copy
-```
-
-#### Combined Options
-```bash
+# Combined options
 ./wp-push-remote --install-plugins "akismet jetpack" -e "uploads cache"
 ```
 
@@ -248,52 +157,6 @@ This will:
 - Remind you to manually remove the public key from the remote server's `~/.ssh/authorized_keys` file
 
 **Important**: You must manually remove the public key from the remote server after deletion.
-
-## Installation Workflow
-
-### System-Wide Setup (Recommended)
-
-This is the recommended approach for managing multiple WordPress sites:
-
-1. **Clone to a system location as root:**
-   ```bash
-   sudo git clone https://github.com/WPNET/wp-push-remote.git /opt/wp-push-remote
-   cd /opt/wp-push-remote
-   sudo chmod +x wp-push-remote.sh
-   ```
-
-2. **Install to site user directories:**
-   ```bash
-   sudo /opt/wp-push-remote/wp-push-remote.sh --install-for-user
-   # Select site from numbered list
-   ```
-
-3. **Configure and run from site directory:**
-   ```bash
-   # Switch to site user or directory
-   cd /sites/yourdomain.com
-   ./wp-push-remote --config    # Configure once
-   ./wp-push-remote              # Run push operations
-   ```
-
-**Why this approach works best:**
-- Single source repository for updates
-- Root/sudo privileges handle ownership correctly
-- Each site user gets an isolated copy
-- Installed copies cannot recursively install
-
-### Per-User Setup
-
-If you don't have root access or prefer user-level installation:
-
-```bash
-git clone https://github.com/WPNET/wp-push-remote.git ~/wp-push-remote
-cd ~/wp-push-remote
-chmod +x wp-push-remote.sh
-./wp-push-remote.sh --config
-```
-
-**Note:** The `--install-for-user` option may require sudo for setting ownership.
 
 ## Configuration
 
