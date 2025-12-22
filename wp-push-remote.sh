@@ -10,7 +10,7 @@ if ((BASH_VERSINFO[0] < 5)); then
     exit 1
 fi
 
-script_version="2.1.0"
+script_version="2.1.1"
 # Author:       gb@wpnet.nz
 # Description:  Push a site from SOURCE server to REMOTE. Run this script from the SOURCE server.
 # Requirements: WP-CLI installed on source and remote
@@ -91,26 +91,28 @@ show_help() {
     echo "    $0 [OPTIONS]"
     echo ""
     echo -e "${COLOR_BOLD_GREEN}OPTIONS:${COLOR_RESET}"
-    echo -e "    ${COLOR_YELLOW}-h, --help${COLOR_RESET}             Show this help message"
-    echo -e "    ${COLOR_YELLOW}-u, --unattended${COLOR_RESET}       Run in unattended mode (no prompts)"
-    echo -e "    ${COLOR_YELLOW}-i, --interactive${COLOR_RESET}      Run in interactive mode (default)"
-    echo -e "    ${COLOR_YELLOW}-c, --config${COLOR_RESET}           Prompt for all configuration settings"
-    echo -e "    ${COLOR_YELLOW}-D, --del-ssh-key${COLOR_RESET}      Delete SSH key pairs for remote user (skips push operation)"
+    echo -e "    ${COLOR_YELLOW}-h, --help${COLOR_RESET}                   Show this help message"
+    echo -e "    ${COLOR_YELLOW}-u, --unattended${COLOR_RESET}             Run in unattended mode (no prompts)"
+    echo -e "    ${COLOR_YELLOW}-i, --interactive${COLOR_RESET}            Run in interactive mode (default)"
+    echo -e "    ${COLOR_YELLOW}-c, --config${COLOR_RESET}                 Prompt for all configuration settings"
+    echo -e "    ${COLOR_YELLOW}-D, --del-ssh-key${COLOR_RESET}            Delete SSH key pairs for remote user (skips push operation)"
     echo ""
-    echo -e "    ${COLOR_YELLOW}-e, --exclude LIST${COLOR_RESET}     Space-delimited list of paths to exclude (quote the list)"
-    echo "                                Example: -e \"wp-content/plugins wp-content/themes/mytheme myfile.js\""
+    echo -e "    ${COLOR_YELLOW}-e, --exclude ${COLOR_RESET}LIST           Space-delimited list of paths to exclude (quote the list)"
+    echo -e "                                    Example: -e \"wp-content/plugins wp-content/themes/mytheme myfile.js\""
+    echo -e "    ${COLOR_YELLOW}-p, --install-plugins${COLOR_RESET} LIST   Space-delimited list of plugins to install"
+    echo -e "                                    Example: --install-plugins \"woocommerce contact-form-7\""
+    echo -e "    ${COLOR_YELLOW}-r, --remote-cmds${COLOR_RESET} CMD        Run custom commands on remote (quote the commands)"
+    echo -e "                                    Example: --remote-cmds \"wp theme install twentytwenty\""
     echo ""
     echo -e "    ${COLOR_BOLD_CYAN}Option Flags:${COLOR_RESET}"
-    echo -e "    ${COLOR_YELLOW}--search-replace${COLOR_RESET}         Run wp search-replace (default: yes)"
-    echo -e "    ${COLOR_YELLOW}--no-search-replace${COLOR_RESET}      Skip wp search-replace"
-    echo -e "    ${COLOR_YELLOW}--files-only${COLOR_RESET}             Skip database operations (default: no)"
-    echo -e "    ${COLOR_YELLOW}--no-db-import${COLOR_RESET}           Don't import database on remote (default: no)"
-    echo -e "    ${COLOR_YELLOW}--install-plugins${COLOR_RESET} LIST   Space-delimited list of plugins to install"
-    echo -e "                                Example: --install-plugins \"woocommerce contact-form-7\""
-    echo -e "    ${COLOR_YELLOW}--run-remote-commands${COLOR_RESET}    Run custom commands on remote (default: no)"
-    echo -e "    ${COLOR_YELLOW}--exclude-wpconfig${COLOR_RESET}       Exclude wp-config.php (default: yes)"
-    echo -e "    ${COLOR_YELLOW}--no-exclude-wpconfig${COLOR_RESET}    Include wp-config.php in sync"
-    echo -e "    ${COLOR_YELLOW}--disable-wp-debug${COLOR_RESET}       Disable WP_DEBUG temporarily (default: no)"
+    echo -e "    ${COLOR_YELLOW}--search-replace${COLOR_RESET}             Run wp search-replace (default: yes)"
+    echo -e "    ${COLOR_YELLOW}--no-search-replace${COLOR_RESET}          Skip wp search-replace"
+    echo -e "    ${COLOR_YELLOW}--files-only${COLOR_RESET}                 Skip database operations (default: no)"
+    echo -e "    ${COLOR_YELLOW}--no-db-import${COLOR_RESET}               Don't import database on remote (default: no)"
+    echo -e "    ${COLOR_YELLOW}--exclude-wpconfig${COLOR_RESET}           Exclude wp-config.php (default: yes)"
+    echo -e "    ${COLOR_YELLOW}--no-exclude-wpconfig${COLOR_RESET}        Include wp-config.php in sync"
+    echo -e "    ${COLOR_YELLOW}--disable-wp-debug${COLOR_RESET}           Disable WP_DEBUG temporarily (default: no)"
+    echo -e "    ${COLOR_YELLOW}--all-tables-with-prefix${COLOR_RESET}     Use --all-tables-with-prefix for wp search-replace (default: no)"
     echo ""
     echo -e "${COLOR_BOLD_GREEN}EXAMPLES:${COLOR_RESET}"
     echo "    # Run with interactive prompts for configuration"
@@ -175,12 +177,13 @@ do_search_replace=1    # run 'wp search-replace' on remote, once for URLs and on
 files_only=0           # don't do a database dump & import
 no_db_import=0         # don't run db import on remote
 install_plugins=0      # install plugins on remote
-run_remote_commands=0  # Run custom commands on remote (see below)
+remote_commands=""     # custom commands to run on remote
 exclude_wpconfig=1     # exclude the wp-config.php file from the rsync to remote, you probably don't want to change this
 unattended_mode=0      # flag for unattended mode
 disable_wp_debug=0     # disable WP_DEBUG on remote for the duration of the push, then revert it back to the original state
 prompt_config=0        # flag to prompt for configuration
 delete_ssh_keys=0      # flag to delete SSH key pairs
+all_tables_with_prefix=0  # use --all-tables-with-prefix option for wp search-replace commands
 
 # Load saved configuration if it exists
 load_config() {
@@ -288,7 +291,7 @@ derive_url_from_path() {
 }
 
 # Excludes for rsync to remote (edit as required)
-excludes=(.maintenance wp-content/cache wp-content/uploads/wp-migrate-db /wp-content/updraft)
+excludes=(.git .maintenance wp-content/cache wp-content/uploads/wp-migrate-db /wp-content/updraft)
 # Or just add to the array like this:
 # excludes+=(.user.ini)
 
@@ -492,7 +495,7 @@ function prompt_for_config() {
 ####################################################################################
 
 # Parse long options
-TEMP=$(getopt -o huicDe: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug -n "$0" -- "$@" 2>/dev/null)
+TEMP=$(getopt -o huicDe:r:p: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,remote-cmds:,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug,all-tables-with-prefix -n "$0" -- "$@" 2>/dev/null)
 
 # Check for getopt errors
 if [[ $? -ne 0 ]]; then
@@ -544,7 +547,7 @@ if [[ $? -ne 0 ]]; then
                 no_db_import=1
                 shift
                 ;;
-            --install-plugins)
+            -p|--install-plugins)
                 if [[ -z "$2" ]]; then
                     print_error "--install-plugins requires a space-delimited list of plugins"
                     exit 1
@@ -553,9 +556,13 @@ if [[ $? -ne 0 ]]; then
                 install_plugins=1
                 shift 2
                 ;;
-            --run-remote-commands)
-                run_remote_commands=1
-                shift
+            -r|--remote-cmds)
+                if [[ -z "$2" ]]; then
+                    print_error "--remote-cmds requires a quoted string of commands"
+                    exit 1
+                fi
+                remote_commands="$2"
+                shift 2
                 ;;
             --exclude-wpconfig)
                 exclude_wpconfig=1
@@ -567,6 +574,10 @@ if [[ $? -ne 0 ]]; then
                 ;;
             --disable-wp-debug)
                 disable_wp_debug=1
+                shift
+                ;;
+            --all-tables-with-prefix)
+                all_tables_with_prefix=1
                 shift
                 ;;
             *)
@@ -622,14 +633,14 @@ else
                 no_db_import=1
                 shift
                 ;;
-            --install-plugins)
+            -p|--install-plugins)
                 plugins_to_install="$2"
                 install_plugins=1
                 shift 2
                 ;;
-            --run-remote-commands)
-                run_remote_commands=1
-                shift
+            -r|--remote-cmds)
+                remote_commands="$2"
+                shift 2
                 ;;
             --exclude-wpconfig)
                 exclude_wpconfig=1
@@ -641,6 +652,10 @@ else
                 ;;
             --disable-wp-debug)
                 disable_wp_debug=1
+                shift
+                ;;
+            --all-tables-with-prefix)
+                all_tables_with_prefix=1
                 shift
                 ;;
             --)
@@ -742,15 +757,21 @@ fi
 echo -e "${COLOR_CYAN}Source:${COLOR_RESET} ${current_user}@${source_path}"
 echo -e "${COLOR_CYAN}Remote:${COLOR_RESET} ${remote_user}@${remote_ip_address}:${remote_path}"
 echo -e "${COLOR_CYAN}Excludes:${COLOR_RESET} ${excludes[*]}"
+if [[ -n "${plugins_to_install}" ]]; then
+    echo -e "${COLOR_CYAN}Plugins to install:${COLOR_RESET} ${plugins_to_install}"
+fi
+if [[ -n "${remote_commands}" ]]; then
+    echo -e "${COLOR_CYAN}Remote commands:${COLOR_RESET} ${remote_commands}"
+fi
 
 # Display option flags
 print_info "Configuration Flags:"
 echo -e "  ${COLOR_CYAN}do_search_replace:${COLOR_RESET} ${do_search_replace}"
 echo -e "  ${COLOR_CYAN}files_only:${COLOR_RESET} ${files_only}"
 echo -e "  ${COLOR_CYAN}no_db_import:${COLOR_RESET} ${no_db_import}"
-echo -e "  ${COLOR_CYAN}install_plugins:${COLOR_RESET} ${install_plugins}"
 echo -e "  ${COLOR_CYAN}exclude_wpconfig:${COLOR_RESET} ${exclude_wpconfig}"
 echo -e "  ${COLOR_CYAN}disable_wp_debug:${COLOR_RESET} ${disable_wp_debug}"
+echo -e "  ${COLOR_CYAN}all_tables_with_prefix:${COLOR_RESET} ${all_tables_with_prefix}"
 
 # Check for existing SSH keys (Ed25519 preferred, RSA fallback)
 ssh_key_path=""
@@ -943,7 +964,12 @@ if (( ${do_search_replace} == 1 && ${files_only} == 0 && ${no_db_import} == 0 ))
 if [[ -n "${wp_search_replace_source_url}" && -n "${wp_search_replace_remote_url}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for URLs ...${COLOR_RESET}"
 echo "Replacing: ${wp_search_replace_source_url} -> ${wp_search_replace_remote_url}"
-wp search-replace --precise "${wp_search_replace_source_url}" "${wp_search_replace_remote_url}" --report-changed-only --format=table --path="${remote_path}"
+if (( ${all_tables_with_prefix} == 1 )); then
+replacement_count=\$(wp search-replace --precise "${wp_search_replace_source_url}" "${wp_search_replace_remote_url}" --report-changed-only --format=count --all-tables-with-prefix --path="${remote_path}")
+else
+replacement_count=\$(wp search-replace --precise "${wp_search_replace_source_url}" "${wp_search_replace_remote_url}" --report-changed-only --format=count --path="${remote_path}")
+fi
+echo "Total replacements made: \${replacement_count}"
 else
 echo -e "${COLOR_YELLOW}[WARNING] Skipping URL search-replace - source or remote URL not available${COLOR_RESET}"
 fi
@@ -952,7 +978,12 @@ fi
 if [[ -n "${wp_search_replace_source_path}" && -n "${wp_search_replace_remote_path}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING 'wp search-replace' for file PATHs ...${COLOR_RESET}"
 echo "Replacing: ${wp_search_replace_source_path} -> ${wp_search_replace_remote_path}"
-wp search-replace --precise "${wp_search_replace_source_path}" "${wp_search_replace_remote_path}" --report-changed-only --format=table --path="${remote_path}"
+if (( ${all_tables_with_prefix} == 1 )); then
+replacement_count=\$(wp search-replace --precise "${wp_search_replace_source_path}" "${wp_search_replace_remote_path}" --report-changed-only --format=count --all-tables-with-prefix --path="${remote_path}")
+else
+replacement_count=\$(wp search-replace --precise "${wp_search_replace_source_path}" "${wp_search_replace_remote_path}" --report-changed-only --format=count --path="${remote_path}")
+fi
+echo "Total replacements made: \${replacement_count}"
 else
 echo -e "${COLOR_YELLOW}[WARNING] Skipping path search-replace - source or remote path not available${COLOR_RESET}"
 fi
@@ -964,18 +995,31 @@ echo -e "${COLOR_BLUE}FLUSHING WP cache ...${COLOR_RESET}"
 wp cache flush --hard --path="${remote_path}"
 fi
 
-if (( ${run_remote_commands} == 1 )); then
-echo -e "\n${COLOR_BLUE}EXECUTING custom commands on remote ...${COLOR_RESET}"
-# Use for running custom commands on the remote, after DB import and search-replace, for example:
-# this runs a url_replace with Elementor
-#echo -e "\n${COLOR_BLUE}Running Elementor replace_urls on remote server ...${COLOR_RESET}"
-#wp elementor replace_urls https:${wp_search_replace_source_url} https:${wp_search_replace_remote_url} --path="${remote_path}"
-fi
-
 if (( ${install_plugins} == 1 )) && [[ -n "${plugins_to_install}" ]]; then
 echo -e "\n${COLOR_BLUE}INSTALLING plugins on remote ...${COLOR_RESET}"
 wp plugin install ${plugins_to_install} --path="${remote_path}"
 wp cache flush --path="${remote_path}"
+fi
+
+if [[ -n "${remote_commands}" ]]; then
+echo -e "\n${COLOR_BLUE}EXECUTING custom commands on remote ...${COLOR_RESET}"
+# Run custom commands passed via --remote-cmds
+# Split commands by semicolon and process each one
+IFS=';' read -ra CMD_ARRAY <<< "${remote_commands}"
+for cmd in "\${CMD_ARRAY[@]}"; do
+    # Trim leading/trailing whitespace
+    cmd=\$(echo "\$cmd" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*\$//')
+    # If the command starts with 'wp' and doesn't contain --path, add it automatically
+    if [[ "\$cmd" =~ ^wp[[:space:]] ]] && [[ ! "\$cmd" =~ --path ]]; then
+        eval "\$cmd --path=${remote_path}"
+    else
+        eval "\$cmd"
+    fi
+done
+# Use for running custom commands on the remote, after DB import and search-replace, for example:
+# this runs a url_replace with Elementor
+#echo -e "\n${COLOR_BLUE}Running Elementor replace_urls on remote server ...${COLOR_RESET}"
+#wp elementor replace_urls https:${wp_search_replace_source_url} https:${wp_search_replace_remote_url} --path="${remote_path}"
 fi
 
 if (( ${disable_wp_debug} == 1 )); then

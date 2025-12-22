@@ -100,11 +100,12 @@ Boolean flags (presence = enabled):
 - `--no-search-replace` - Skip wp search-replace
 - `--files-only` - Skip all database operations
 - `--no-db-import` - Don't import database on remote
-- `--install-plugins "LIST"` - Install plugins (space-delimited list)
-- `--run-remote-commands` - Run custom commands on remote
+- `-p, --install-plugins "LIST"` - Install plugins (space-delimited list)
+- `-r, --remote-cmds "CMD"` - Run custom commands on remote (quote the commands)
 - `--exclude-wpconfig` - Exclude wp-config.php from rsync (default: yes)
 - `--no-exclude-wpconfig` - Include wp-config.php in sync
 - `--disable-wp-debug` - Temporarily disable WP_DEBUG during push
+- `--all-tables-with-prefix` - Use --all-tables-with-prefix option for wp search-replace commands (default: no)
 
 ### Examples
 
@@ -139,6 +140,18 @@ Boolean flags (presence = enabled):
 #### Skip Search-Replace
 ```bash
 ./wp-push-remote.sh --no-search-replace
+```
+
+#### Use All Tables With Prefix for Search-Replace
+```bash
+./wp-push-remote.sh --all-tables-with-prefix
+```
+
+#### Run Custom Commands on Remote
+```bash
+./wp-push-remote.sh --remote-cmds "wp theme install twentytwenty"
+# or with short option
+./wp-push-remote.sh -r "wp plugin update --all"
 ```
 
 #### Delete SSH Key Pairs
