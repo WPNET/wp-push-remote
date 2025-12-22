@@ -107,7 +107,8 @@ show_help() {
     echo -e "    ${COLOR_YELLOW}--no-db-import${COLOR_RESET}           Don't import database on remote (default: no)"
     echo -e "    ${COLOR_YELLOW}--install-plugins${COLOR_RESET} LIST   Space-delimited list of plugins to install"
     echo -e "                                Example: --install-plugins \"woocommerce contact-form-7\""
-    echo -e "    ${COLOR_YELLOW}--run-remote-commands${COLOR_RESET}    Run custom commands on remote (default: no)"
+    echo -e "    ${COLOR_YELLOW}-r, --remote-cmds${COLOR_RESET} CMD    Run custom commands on remote (quote the commands)"
+    echo -e "                                Example: --remote-cmds \"wp theme install twentytwenty\""
     echo -e "    ${COLOR_YELLOW}--exclude-wpconfig${COLOR_RESET}       Exclude wp-config.php (default: yes)"
     echo -e "    ${COLOR_YELLOW}--no-exclude-wpconfig${COLOR_RESET}    Include wp-config.php in sync"
     echo -e "    ${COLOR_YELLOW}--disable-wp-debug${COLOR_RESET}       Disable WP_DEBUG temporarily (default: no)"
@@ -176,7 +177,7 @@ do_search_replace=1    # run 'wp search-replace' on remote, once for URLs and on
 files_only=0           # don't do a database dump & import
 no_db_import=0         # don't run db import on remote
 install_plugins=0      # install plugins on remote
-run_remote_commands=0  # Run custom commands on remote (see below)
+remote_commands=""     # custom commands to run on remote
 exclude_wpconfig=1     # exclude the wp-config.php file from the rsync to remote, you probably don't want to change this
 unattended_mode=0      # flag for unattended mode
 disable_wp_debug=0     # disable WP_DEBUG on remote for the duration of the push, then revert it back to the original state
@@ -494,7 +495,7 @@ function prompt_for_config() {
 ####################################################################################
 
 # Parse long options
-TEMP=$(getopt -o huicDe: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,run-remote-commands,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug,all-tables-with-prefix -n "$0" -- "$@" 2>/dev/null)
+TEMP=$(getopt -o huicDe:r: --long help,unattended,interactive,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,remote-cmds:,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug,all-tables-with-prefix -n "$0" -- "$@" 2>/dev/null)
 
 # Check for getopt errors
 if [[ $? -ne 0 ]]; then
@@ -555,9 +556,13 @@ if [[ $? -ne 0 ]]; then
                 install_plugins=1
                 shift 2
                 ;;
-            --run-remote-commands)
-                run_remote_commands=1
-                shift
+            -r|--remote-cmds)
+                if [[ -z "$2" ]]; then
+                    print_error "--remote-cmds requires a quoted string of commands"
+                    exit 1
+                fi
+                remote_commands="$2"
+                shift 2
                 ;;
             --exclude-wpconfig)
                 exclude_wpconfig=1
@@ -633,9 +638,9 @@ else
                 install_plugins=1
                 shift 2
                 ;;
-            --run-remote-commands)
-                run_remote_commands=1
-                shift
+            -r|--remote-cmds)
+                remote_commands="$2"
+                shift 2
                 ;;
             --exclude-wpconfig)
                 exclude_wpconfig=1
@@ -985,8 +990,10 @@ echo -e "${COLOR_BLUE}FLUSHING WP cache ...${COLOR_RESET}"
 wp cache flush --hard --path="${remote_path}"
 fi
 
-if (( ${run_remote_commands} == 1 )); then
+if [[ -n "${remote_commands}" ]]; then
 echo -e "\n${COLOR_BLUE}EXECUTING custom commands on remote ...${COLOR_RESET}"
+# Run custom commands passed via --remote-cmds
+${remote_commands}
 # Use for running custom commands on the remote, after DB import and search-replace, for example:
 # this runs a url_replace with Elementor
 #echo -e "\n${COLOR_BLUE}Running Elementor replace_urls on remote server ...${COLOR_RESET}"
