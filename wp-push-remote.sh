@@ -321,7 +321,19 @@ install_for_user() {
     fi
     
     local selected_site="${sites[$((choice-1))]}"
-    local install_path="${selected_site}/wp-push-remote"
+    local bin_dir="${selected_site}/.local/bin"
+    local install_path="${bin_dir}/wp-push-remote"
+    
+    # Create .local/bin directory if it doesn't exist
+    if [[ ! -d "$bin_dir" ]]; then
+        print_info "Creating directory: ${bin_dir}"
+        if mkdir -p "$bin_dir"; then
+            print_success "Directory created successfully"
+        else
+            print_error "Failed to create directory"
+            exit 1
+        fi
+    fi
     
     print_step "Installing script to: ${install_path}"
     
@@ -401,11 +413,12 @@ install_for_user() {
     fi
     
     print_info "Setting ownership to ${site_owner}:${site_owner}"
-    if chown "${site_owner}:${site_owner}" "$install_path" 2>/dev/null; then
+    # Set ownership on the .local/bin directory and the script
+    if chown -R "${site_owner}:${site_owner}" "$bin_dir" 2>/dev/null; then
         print_success "Ownership set successfully"
     else
         print_warning "Failed to set ownership (may require sudo)"
-        print_info "You may need to run: sudo chown ${site_owner}:${site_owner} ${install_path}"
+        print_info "You may need to run: sudo chown -R ${site_owner}:${site_owner} ${bin_dir}"
     fi
     
     print_info "Setting executable permission"
