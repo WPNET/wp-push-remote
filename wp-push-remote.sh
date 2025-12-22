@@ -757,6 +757,12 @@ fi
 echo -e "${COLOR_CYAN}Source:${COLOR_RESET} ${current_user}@${source_path}"
 echo -e "${COLOR_CYAN}Remote:${COLOR_RESET} ${remote_user}@${remote_ip_address}:${remote_path}"
 echo -e "${COLOR_CYAN}Excludes:${COLOR_RESET} ${excludes[*]}"
+if [[ -n "${plugins_to_install}" ]]; then
+    echo -e "${COLOR_CYAN}Plugins to install:${COLOR_RESET} ${plugins_to_install}"
+fi
+if [[ -n "${remote_commands}" ]]; then
+    echo -e "${COLOR_CYAN}Remote commands:${COLOR_RESET} ${remote_commands}"
+fi
 
 # Display option flags
 print_info "Configuration Flags:"
@@ -767,9 +773,6 @@ echo -e "  ${COLOR_CYAN}install_plugins:${COLOR_RESET} ${install_plugins}"
 echo -e "  ${COLOR_CYAN}exclude_wpconfig:${COLOR_RESET} ${exclude_wpconfig}"
 echo -e "  ${COLOR_CYAN}disable_wp_debug:${COLOR_RESET} ${disable_wp_debug}"
 echo -e "  ${COLOR_CYAN}all_tables_with_prefix:${COLOR_RESET} ${all_tables_with_prefix}"
-if [[ -n "${remote_commands}" ]]; then
-    echo -e "  ${COLOR_CYAN}remote_commands:${COLOR_RESET} ${remote_commands}"
-fi
 
 # Check for existing SSH keys (Ed25519 preferred, RSA fallback)
 ssh_key_path=""
