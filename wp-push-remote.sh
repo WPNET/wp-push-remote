@@ -685,8 +685,6 @@ fi
 
 # Handle SSH key deletion if requested
 if [[ $delete_ssh_keys -eq 1 ]]; then
-    # Load configuration to get remote_user
-    load_config
     delete_ssh_key_pairs
 fi
 
