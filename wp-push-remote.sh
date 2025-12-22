@@ -291,7 +291,7 @@ derive_url_from_path() {
 }
 
 # Excludes for rsync to remote (edit as required)
-excludes=(.maintenance wp-content/cache wp-content/uploads/wp-migrate-db /wp-content/updraft)
+excludes=(.git .maintenance wp-content/cache wp-content/uploads/wp-migrate-db /wp-content/updraft)
 # Or just add to the array like this:
 # excludes+=(.user.ini)
 
