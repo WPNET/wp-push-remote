@@ -1,18 +1,20 @@
 # WP Push Remote
 
-A powerful bash script to push WordPress sites from a SOURCE server to a REMOTE server using WP-CLI and rsync. Optimized for Ubuntu 24.04 LTS and higher. Features include database migration with search-replace, file synchronization with exclusions, an interactive configuration mode, and systemd journal logging.
+A powerful bash script to push WordPress sites from a SOURCE server to a REMOTE server using WP-CLI and rsync. Optimized for Ubuntu 24.04 LTS and higher.
 
 ## Features
 
-- 🚀 **Interactive Configuration Mode**: Prompt-based setup for all configuration variables
+- 🚀 **One-Time Configuration**: Configure once with `--config`, settings saved automatically
+- 🎯 **Smart Auto-Detection**: URLs and table prefixes detected via WP-CLI
 - 🎨 **Colorized Output**: Beautiful, user-friendly terminal interface
-- 🔧 **Flexible Options**: Command-line arguments for all configuration flags
-- 📁 **Custom Exclusions**: Add custom paths to exclude from rsync
-- 🔄 **Database Migration**: Automatic database export, transfer, and import
-- 🔍 **Search-Replace**: Built-in wp-cli search-replace for URLs and file paths
-- 🔐 **Modern SSH Keys**: Ed25519 key generation for better security and performance
+- 🔧 **Boolean Flags**: Simple CLI with `--files-only` instead of `--files-only 1`
+- 📁 **Custom Exclusions**: Space-delimited exclusion lists via `-e` flag
+- 🔌 **Plugin Installation**: Install multiple plugins with `--install-plugins "plugin1 plugin2"`
+- 🔄 **Database Migration**: Automatic export, transfer, import, and search-replace
+- 🔍 **WP-CLI Best Practices**: Uses `wp db prefix` for reliable prefix detection
+- 🔐 **Modern SSH Keys**: Ed25519 key generation for better security
 - ⚙️ **Multiple Modes**: Interactive, unattended, and files-only modes
-- 📊 **Progress Reporting**: Detailed output with execution time tracking
+- 🔄 **Table Prefix Sync**: Automatic detection and synchronization of mismatched prefixes
 - 📝 **Systemd Integration**: Automatic logging to systemd journal
 - 🛡️ **Ubuntu Optimized**: Best practices for Ubuntu 24.04 LTS+
 
@@ -62,17 +64,27 @@ wp --info
 
 ## Usage
 
-### Basic Usage
+### Quick Start
 
-Run with interactive configuration prompts:
+**First time setup:**
 ```bash
-./wp-push-remote.sh --prompt-config
+./wp-push-remote.sh --config
+# Configure source/remote paths once - settings saved automatically
+# URLs and table prefixes detected via WP-CLI
+```
+
+**Subsequent runs:**
+```bash
+./wp-push-remote.sh
+# Uses saved configuration - no re-entry needed!
 ```
 
 ### Display Help
 
 ```bash
 ./wp-push-remote.sh --help
+# or
+./wp-push-remote.sh -h
 ```
 
 ### Command-Line Options
@@ -80,145 +92,167 @@ Run with interactive configuration prompts:
 #### General Options
 
 - `-h, --help` - Show help message
-- `-u, --unattended` - Run in unattended mode (no prompts, assumes YES for all confirmations)
+- `-u, --unattended` - Run in unattended mode (no prompts)
 - `-i, --interactive` - Run in interactive mode (default)
-- `-p, --prompt-config` - Prompt for all configuration settings at startup
+- `-c, --config` - Configure source/remote settings (saves to `~/.wp-push-remote.conf`)
 
 #### Exclusions
 
-- `-e, --exclude LIST` - Space-delimited list of paths to exclude (quote the list)
+- `-e, --exclude "LIST"` - Space-delimited list of paths to exclude
   ```bash
   ./wp-push-remote.sh -e "uploads .git .maintenance"
   ```
 
 #### Option Flags
 
-Option flags are boolean - the presence of the flag sets it to true/enabled:
+Boolean flags (presence = enabled):
 
 - `--search-replace` - Run wp search-replace on database (default: yes)
 - `--no-search-replace` - Skip wp search-replace
-- `--files-only` - Skip all database operations (default: no)
-- `--no-db-import` - Don't import database on remote (default: no)
-- `--install-plugins` - Install plugins on remote (default: no)
-- `--run-remote-commands` - Run custom commands on remote (default: no)
+- `--files-only` - Skip all database operations
+- `--no-db-import` - Don't import database on remote
+- `--install-plugins "LIST"` - Install plugins (space-delimited list)
+- `--run-remote-commands` - Run custom commands on remote
 - `--exclude-wpconfig` - Exclude wp-config.php from rsync (default: yes)
 - `--no-exclude-wpconfig` - Include wp-config.php in sync
-- `--disable-wp-debug` - Temporarily disable WP_DEBUG during push (default: no)
+- `--disable-wp-debug` - Temporarily disable WP_DEBUG during push
 
 ### Examples
 
-#### Example 1: Interactive Setup (First Time)
+#### First Time Configuration
 ```bash
-./wp-push-remote.sh --prompt-config
+./wp-push-remote.sh --config
+# Prompts for source/remote paths with smart defaults
+# Saves to ~/.wp-push-remote.conf automatically
 ```
-This will prompt you for:
-- Source server path and webroot (with smart defaults like `/sites/{domain}/files`)
-- Remote server IP, user, path, and webroot
-- Database handling options (with search-replace, without, or files only)
-- Search-replace URLs and paths (auto-detected from your paths)
 
-**Configuration is automatically saved** to `~/.wp-push-remote.conf` and will be loaded on subsequent runs.
-
-#### Example 2: Run with Saved Configuration
+#### Run with Saved Configuration
 ```bash
 ./wp-push-remote.sh
+# Uses saved settings - ready to go!
 ```
-Uses the saved configuration from your first setup. No need to re-enter details!
 
-#### Example 3: Unattended Mode with Custom Exclusions
+#### Install Plugins on Remote
 ```bash
-./wp-push-remote.sh -u -e "uploads .maintenance"
+./wp-push-remote.sh --install-plugins "woocommerce contact-form-7 wordpress-seo"
 ```
 
-#### Example 4: Files Only (No Database)
+#### Files Only (No Database)
 ```bash
 ./wp-push-remote.sh --files-only
 ```
 
-#### Example 5: Skip Search-Replace
+#### Unattended Mode with Exclusions
+```bash
+./wp-push-remote.sh -u -e "uploads cache .git"
+```
+
+#### Skip Search-Replace
 ```bash
 ./wp-push-remote.sh --no-search-replace
 ```
 
-#### Example 6: Combined Options
+#### Combined Options
 ```bash
-./wp-push-remote.sh -p --disable-wp-debug -e "node_modules"
+./wp-push-remote.sh --install-plugins "akismet jetpack" -e "uploads cache"
 ```
 
 ## Configuration
 
-### Saved Configuration
+### Persistent Configuration
 
-The script automatically saves your configuration to `~/.wp-push-remote.conf` when you use `--prompt-config`. This configuration is loaded on subsequent runs, so you don't need to re-enter settings each time.
+Run `--config` once to save your settings to `~/.wp-push-remote.conf`. The configuration is automatically loaded on subsequent runs.
+
+### What Gets Configured
+
+When you run `./wp-push-remote.sh --config`, you'll be prompted for:
+- **Source path prefix**: e.g., `/sites/example.com/`
+- **Source webroot**: e.g., `files` or `public_html`
+- **Remote IP/hostname**: e.g., `192.168.1.100` or `staging.example.com`
+- **Remote user**: SSH username on remote server
+- **Remote path prefix**: e.g., `/sites/staging.example.com/`
+- **Remote webroot**: e.g., `files`
+
+### Auto-Detection
+
+The script automatically detects:
+- **WordPress URLs**: Via `wp option get siteurl` on both sites
+- **Table prefixes**: Via `wp db prefix` command (WP-CLI best practice)
+- **File paths**: Derived from your configured paths
 
 ### Smart Defaults
 
-- **Path structure**: Defaults to `/sites/{domain}/files` pattern
-- **URLs**: Auto-detected from paths (e.g., `/sites/example.com/` → `//example.com`)
-- **Search-replace paths**: Auto-derived from your source and remote paths
-- **Webroot**: Defaults to `files` (press Enter to accept)
+- Path structure defaults to `/sites/{domain}/files` pattern
+- Press Enter to accept defaults shown in [brackets]
+- Previous values remembered for easy updates
 
-### Manual Configuration
+### Manual Editing
 
-If you prefer to edit configuration directly, you can modify `~/.wp-push-remote.conf`:
-
+Edit `~/.wp-push-remote.conf` if needed:
 ```bash
-# WP Push Remote Configuration
 source_path_prefix="/sites/example.com/"
 source_webroot="files"
 remote_ip_address="192.168.1.100"
 remote_user="production"
 remote_path_prefix="/sites/staging.example.com/"
 remote_webroot="files"
-wp_search_replace_source_url="//example.com"
-wp_search_replace_remote_url="//staging.example.com"
-wp_search_replace_source_path="/sites/example.com/files"
-wp_search_replace_remote_path="/sites/staging.example.com/files"
 ```
 
 ### Default Exclusions
 
-By default, the following paths are excluded from rsync:
+These paths are excluded by default:
 - `.maintenance`
 - `wp-content/cache`
 - `wp-content/uploads/wp-migrate-db`
 - `/wp-content/updraft`
 - `.user.ini`
-- `wp-config.php` (if `exclude_wpconfig=1`)
+- `wp-config.php` (unless `--no-exclude-wpconfig` is used)
 
-Add custom exclusions using the `-e` flag or by editing the `excludes` array in the script.
+## Key Features Explained
 
-## Database Handling Options
+### Table Prefix Synchronization
 
-When using `--prompt-config`, you'll be asked how to handle the database:
+The script uses `wp db prefix` (WP-CLI best practice) to detect table prefixes on both sites. If they differ:
+1. Warns you about the mismatch
+2. Prompts for confirmation to synchronize
+3. Resets remote database: `wp db reset --yes`
+4. Sets matching prefix: `wp config set table_prefix`
+5. Continues with normal database import
 
-1. **Copy database and perform search-replace**: Copies the database and performs URL and path rewrites (recommended for staging/development environments)
+In unattended mode, mismatches are logged but no automatic changes are made (safer).
 
-2. **Copy database without modifications**: Copies the database as-is without any search-replace operations
+### Plugin Installation
 
-3. **Files only**: Skips all database operations and only syncs files
+Install multiple plugins on the remote with a single command:
+```bash
+./wp-push-remote.sh --install-plugins "plugin-slug1 plugin-slug2 plugin-slug3"
+```
 
-## SSH Key Management
+Plugins are installed after database operations and cache is flushed automatically.
 
-The script automatically manages SSH keys for connecting to the remote server:
+### SSH Key Management
 
-1. Checks for existing SSH key: `~/.ssh/id_rsa_remote_${remote_user}`
-2. Prompts to generate a new key if not found (in interactive mode)
-3. Tests the connection to the remote server
-4. Optionally removes the key pair after the push is complete
+The script manages SSH keys automatically:
+- Checks for existing key: `~/.ssh/id_ed25519_remote_{user}`
+- Falls back to RSA key if Ed25519 not found
+- Generates new Ed25519 key if none exists (in interactive mode)
+- Tests connection before proceeding
+- Sets proper permissions (600) automatically
 
 ## Workflow
 
-1. **Configuration**: Set up source and remote details (via prompts or command-line args)
-2. **SSH Setup**: Generate or use existing SSH key for remote access
-3. **Connection Test**: Verify SSH connection to remote server
-4. **Database Export**: Export source database (unless files-only mode)
-5. **File Sync**: Rsync files to remote with exclusions
-6. **Database Import**: Import database on remote (if applicable)
-7. **Search-Replace**: Perform URL and path rewrites (if enabled)
-8. **Custom Commands**: Run any custom commands (if enabled)
-9. **Plugin Installation**: Install plugins (if enabled)
-10. **Cleanup**: Remove temporary files and optionally SSH keys
+1. **Configuration**: Load saved config or prompt with `--config`
+2. **Auto-Detection**: Detect URLs and table prefixes via WP-CLI
+3. **SSH Setup**: Use existing or generate Ed25519 SSH key
+4. **Connection Test**: Verify SSH access (optional in interactive mode)
+5. **Table Prefix Check**: Compare and sync if different (with confirmation)
+6. **Database Export**: Export source database (unless `--files-only`)
+7. **File Sync**: Rsync files to remote with exclusions
+8. **Database Import**: Import database on remote
+9. **Search-Replace**: Update URLs and paths (unless `--no-search-replace`)
+10. **Plugin Installation**: Install plugins if specified via `--install-plugins`
+11. **Cache Flush**: Single cache flush after all operations
+12. **Cleanup**: Remove temporary files
 
 ## Troubleshooting
 
@@ -252,22 +286,23 @@ If not installed, follow the [WP-CLI installation guide](https://wp-cli.org/#ins
 
 ## Security Considerations
 
-- **wp-config.php**: By default, excluded from rsync to prevent overwriting remote configuration
-- **SSH Keys**: Ed25519 keys generated by default for better security and performance on Ubuntu 24.04+
-- **Database Backups**: Automatically cleaned up after successful import
-- **Unattended Mode**: Use with caution in production environments
-- **Systemd Logging**: All operations logged to systemd journal for audit trail
+- **wp-config.php**: Excluded by default to prevent overwriting remote configuration
+- **SSH Keys**: Ed25519 keys (preferred) for better security on Ubuntu 24.04+
+- **Database Cleanup**: Temporary SQL files cleaned up after import
+- **Unattended Mode**: Use cautiously - skips confirmations
+- **Systemd Logging**: All operations logged for audit trail
+- **Table Prefix Sync**: Requires confirmation before resetting remote database
 
 ### Viewing Logs
 
 ```bash
-# View wp-push-remote logs
+# View all logs
 journalctl -t wp-push-remote
 
-# Follow logs in real-time
+# Follow in real-time
 journalctl -t wp-push-remote -f
 
-# View logs from today
+# Today's logs only
 journalctl -t wp-push-remote --since today
 ```
 
@@ -285,18 +320,29 @@ This script is provided as-is for use in WordPress deployments.
 
 ## Version History
 
-- **v2.0.0**: Major update with:
-  - Interactive configuration with prompts for all settings
+- **v2.0.4**: Current version
+  - Configuration simplified: use `--config` instead of `--prompt-config`
+  - No more database configuration prompts during setup
+  - Auto-detection of URLs via WP-CLI
+  - Table prefix detection using `wp db prefix` command (best practice)
+  - Table prefix synchronization with confirmation
+  - Enhanced `--install-plugins` to accept space-delimited plugin list
+  - All database operations controlled via CLI flags
+  - Improved search-replace with auto-detected values
+  - Single cache flush after all operations
+  - Better error handling and user feedback
+  
+- **v2.0.0**: Major update
+  - Interactive configuration with prompts
   - Colorized output for better UX
-  - Comprehensive argument parsing for all options
-  - Custom exclusion support via -e/--exclude flag
-  - Help system with -h/--help
+  - Boolean flag syntax
+  - Custom exclusion support
   - Ubuntu 24.04+ optimizations
-  - Ed25519 SSH key support (preferred over RSA)
-  - Systemd journal logging integration
-  - Enhanced validation and error handling
+  - Ed25519 SSH key support
+  - Systemd journal logging
+  - Enhanced validation
   - Automatic cleanup on interruption
-  - Better cross-command compatibility
+  
 - **v1.8.1**: Previous stable version
 
 ## Support
