@@ -179,12 +179,10 @@ wp_search_replace_remote_path="/sites/staging.example.com/files"
 ### Default Exclusions
 
 By default, the following paths are excluded from rsync:
-- `.wp-stats`
 - `.maintenance`
 - `wp-content/cache`
 - `wp-content/uploads/wp-migrate-db`
 - `/wp-content/updraft`
-- `wp-content/uploads-old`
 - `.user.ini`
 - `wp-config.php` (if `exclude_wpconfig=1`)
 
