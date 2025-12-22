@@ -1,6 +1,6 @@
 # WP Push Remote
 
-A powerful bash script to push WordPress sites from a SOURCE server to a REMOTE server using WP-CLI and rsync. Optimized for Ubuntu 22.04 LTS and higher.
+A bash script to push WordPress sites from a SOURCE (LOCAL) server to a REMOTE server using WP-CLI and rsync. Works on Ubuntu 22.04 LTS and higher.
 
 ## Features
 
