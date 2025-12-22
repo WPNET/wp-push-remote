@@ -84,6 +84,8 @@ wp --info
 - `-i, --install-for-user` - Install script to a user's site directory (skips push operation)
 - `-c, --config` - Configure source/remote settings (saves to `~/.wp-push-remote.conf`)
 - `-D, --del-ssh-key` - Delete SSH key pairs for remote user (skips push operation)
+- `-p, --install-plugins "LIST"` - Install plugins (space-delimited list)
+- `-r, --remote-cmds "CMD"` - Run custom commands on remote (quote the commands)
 
 #### Exclusions
 
@@ -100,8 +102,6 @@ Boolean flags (presence = enabled):
 - `--no-search-replace` - Skip wp search-replace
 - `--files-only` - Skip all database operations
 - `--no-db-import` - Don't import database on remote
-- `-p, --install-plugins "LIST"` - Install plugins (space-delimited list)
-- `-r, --remote-cmds "CMD"` - Run custom commands on remote (quote the commands)
 - `--exclude-wpconfig` - Exclude wp-config.php from rsync (default: yes)
 - `--no-exclude-wpconfig` - Include wp-config.php in sync
 - `--disable-wp-debug` - Temporarily disable WP_DEBUG during push
