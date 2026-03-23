@@ -10,7 +10,7 @@ if ((BASH_VERSINFO[0] < 5)); then
     exit 1
 fi
 
-script_version="2.1.3"
+script_version="2.1.4"
 # Author:       gb@wpnet.nz
 # Description:  Push a site from SOURCE server to REMOTE. Run this script from the SOURCE server.
 # Requirements: WP-CLI installed on source and remote
@@ -1020,9 +1020,7 @@ if (( files_only == 0 ))
 then
     # Dump database
     print_step "EXPORTING database ..."
-    # Use --single-transaction for consistent snapshot and --set-gtid-purged=OFF to avoid GTID warnings
-    # These flags ensure a reliable backup without locking the database
-    if wp db export ${source_path}/${source_db_name} --path="${source_path}" -- --single-transaction --set-gtid-purged=OFF; then
+    if wp db export ${source_path}/${source_db_name} --path="${source_path}"; then
         print_success "Database exported successfully"
         # Filter out problematic SET statements that require SUPER privileges
         # This prevents "Access denied" errors when importing to servers with restricted user privileges
