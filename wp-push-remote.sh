@@ -10,7 +10,7 @@ if ((BASH_VERSINFO[0] < 5)); then
     exit 1
 fi
 
-script_version="2.1.4"
+script_version="2.1.5"
 # Author:       gb@wpnet.nz
 # Description:  Push a site from SOURCE server to REMOTE. Run this script from the SOURCE server.
 # Requirements: WP-CLI installed on source and remote
@@ -1022,10 +1022,24 @@ then
     print_step "EXPORTING database ..."
     if wp db export ${source_path}/${source_db_name} --path="${source_path}"; then
         print_success "Database exported successfully"
-        # Filter out problematic SET statements that require SUPER privileges
+        # Filter out problematic statements that require elevated privileges on import
         # This prevents "Access denied" errors when importing to servers with restricted user privileges
         print_info "Filtering SQL file to remove privileged statements..."
-        sed -i '/^SET SESSION/d; /^SET GLOBAL/d; /^SET @@session\./d; /^SET @@global\./d' ${source_path}/${source_db_name}
+        # Remove full GTID_PURGED block (can span multiple lines)
+        sed -i -E \
+            '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@@[Gg][Ll][Oo][Bb][Aa][Ll]\.[Gg][Tt][Ii][Dd]_[Pp][Uu][Rr][Gg][Ee][Dd]/,/;[[:space:]]*$/d' \
+            ${source_path}/${source_db_name}
+
+        # Remove privileged SESSION/GLOBAL assignments and SQL_LOG_BIN toggles
+        sed -i -E \
+            -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]+([Ss][Ee][Ss][Ss][Ii][Oo][Nn]|[Gg][Ll][Oo][Bb][Aa][Ll])[[:space:]]+/d' \
+            -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@@([Ss][Ee][Ss][Ss][Ii][Oo][Nn]|[Gg][Ll][Oo][Bb][Aa][Ll])\./d' \
+            -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@MYSQLDUMP_TEMP_LOG_BIN/d' \
+            -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@@[Ss][Ee][Ss][Ss][Ii][Oo][Nn]\.[Ss][Qq][Ll]_[Ll][Oo][Gg]_[Bb][Ii][Nn]/d' \
+            -e '/\/\*![0-9]*[[:space:]]*[Ss][Ee][Tt][[:space:]]*[Tt][Ii][Mm][Ee]_[Zz][Oo][Nn][Ee]/d' \
+            -e '/\/\*![0-9]*[[:space:]]*[Ss][Ee][Tt][[:space:]]*[Ss][Ee][Ss][Ss][Ii][Oo][Nn][[:space:]]*[Ss][Qq][Ll]_[Mm][Oo][Dd][Ee]/d' \
+            -e '/\/\*![0-9]*[[:space:]]*[Ss][Ee][Tt].*[Ss][Yy][Ss][Tt][Ee][Mm]_[Vv][Aa][Rr][Ii][Aa][Bb][Ll][Ee][Ss]_[Aa][Dd][Mm][Ii][Nn]/d' \
+            ${source_path}/${source_db_name}
         print_success "SQL file filtered successfully"
     else
         print_error "Failed to export database"
