@@ -10,7 +10,7 @@ if ((BASH_VERSINFO[0] < 5)); then
     exit 1
 fi
 
-script_version="2.1.5"
+script_version="2.2.0"
 # Author:       gb@wpnet.nz
 # Description:  Push a site from SOURCE server to REMOTE. Run this script from the SOURCE server.
 # Requirements: WP-CLI installed on source and remote
@@ -96,6 +96,7 @@ show_help() {
     echo -e "    ${COLOR_YELLOW}-i, --install-for-user${COLOR_RESET}       Install script to a user's site directory (skips push operation)"
     echo -e "    ${COLOR_YELLOW}-c, --config${COLOR_RESET}                 Prompt for all configuration settings"
     echo -e "    ${COLOR_YELLOW}-D, --del-ssh-key${COLOR_RESET}            Delete SSH key pairs for remote user (skips push operation)"
+    echo -e "    ${COLOR_YELLOW}-f, --filter-sql${COLOR_RESET}             Filter SQL dump to remove privileged statements (slower export)"
     echo ""
     echo -e "    ${COLOR_YELLOW}-e, --exclude ${COLOR_RESET}LIST           Space-delimited list of paths to exclude (quote the list)"
     echo -e "                                    Example: -e \"wp-content/plugins wp-content/themes/mytheme myfile.js\""
@@ -185,6 +186,7 @@ prompt_config=0        # flag to prompt for configuration
 delete_ssh_keys=0      # flag to delete SSH key pairs
 all_tables_with_prefix=0  # use --all-tables-with-prefix option for wp search-replace commands
 install_for_user=0     # flag to install script for a user
+filter_sql=0           # filter SQL dump to remove privileged statements (can add processing time)
 
 # Load saved configuration if it exists
 load_config() {
@@ -660,7 +662,7 @@ function prompt_for_config() {
 ####################################################################################
 
 # Parse long options
-TEMP=$(getopt -o huicDe:r:p: --long help,unattended,install-for-user,config,del-ssh-key,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,remote-cmds:,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug,all-tables-with-prefix -n "$0" -- "$@" 2>/dev/null)
+TEMP=$(getopt -o huicDfe:r:p: --long help,unattended,install-for-user,config,del-ssh-key,filter-sql,exclude:,search-replace,no-search-replace,files-only,no-db-import,install-plugins:,remote-cmds:,exclude-wpconfig,no-exclude-wpconfig,disable-wp-debug,all-tables-with-prefix -n "$0" -- "$@" 2>/dev/null)
 
 # Check for getopt errors
 if [[ $? -ne 0 ]]; then
@@ -684,6 +686,10 @@ if [[ $? -ne 0 ]]; then
                 ;;
             -D|--del-ssh-key)
                 delete_ssh_keys=1
+                shift
+                ;;
+            -f|--filter-sql)
+                filter_sql=1
                 shift
                 ;;
             -e|--exclude)
@@ -774,6 +780,10 @@ else
                 ;;
             -D|--del-ssh-key)
                 delete_ssh_keys=1
+                shift
+                ;;
+            -f|--filter-sql)
+                filter_sql=1
                 shift
                 ;;
             -e|--exclude)
@@ -942,6 +952,11 @@ echo -e "  ${COLOR_CYAN}no_db_import:${COLOR_RESET} ${no_db_import}"
 echo -e "  ${COLOR_CYAN}exclude_wpconfig:${COLOR_RESET} ${exclude_wpconfig}"
 echo -e "  ${COLOR_CYAN}disable_wp_debug:${COLOR_RESET} ${disable_wp_debug}"
 echo -e "  ${COLOR_CYAN}all_tables_with_prefix:${COLOR_RESET} ${all_tables_with_prefix}"
+echo -e "  ${COLOR_CYAN}filter_sql:${COLOR_RESET} ${filter_sql}"
+
+if (( filter_sql == 1 )); then
+    print_warning "SQL filtering is ENABLED (-f/--filter-sql). Export step may take longer."
+fi
 
 # Check for existing SSH keys (Ed25519 preferred, RSA fallback)
 ssh_key_path=""
@@ -1022,25 +1037,29 @@ then
     print_step "EXPORTING database ..."
     if wp db export ${source_path}/${source_db_name} --path="${source_path}"; then
         print_success "Database exported successfully"
-        # Filter out problematic statements that require elevated privileges on import
-        # This prevents "Access denied" errors when importing to servers with restricted user privileges
-        print_info "Filtering SQL file to remove privileged statements..."
-        # Remove full GTID_PURGED block (can span multiple lines)
-        sed -i -E \
-            '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@@[Gg][Ll][Oo][Bb][Aa][Ll]\.[Gg][Tt][Ii][Dd]_[Pp][Uu][Rr][Gg][Ee][Dd]/,/;[[:space:]]*$/d' \
-            ${source_path}/${source_db_name}
+        if (( filter_sql == 1 )); then
+            # Filter out problematic statements that require elevated privileges on import
+            # This prevents "Access denied" errors when importing to servers with restricted user privileges
+            print_info "Filtering SQL file to remove privileged statements..."
+            # Remove full GTID_PURGED block (can span multiple lines)
+            sed -i -E \
+                '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@@[Gg][Ll][Oo][Bb][Aa][Ll]\.[Gg][Tt][Ii][Dd]_[Pp][Uu][Rr][Gg][Ee][Dd]/,/;[[:space:]]*$/d' \
+                ${source_path}/${source_db_name}
 
-        # Remove privileged SESSION/GLOBAL assignments and SQL_LOG_BIN toggles
-        sed -i -E \
-            -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]+([Ss][Ee][Ss][Ss][Ii][Oo][Nn]|[Gg][Ll][Oo][Bb][Aa][Ll])[[:space:]]+/d' \
-            -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@@([Ss][Ee][Ss][Ss][Ii][Oo][Nn]|[Gg][Ll][Oo][Bb][Aa][Ll])\./d' \
-            -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@MYSQLDUMP_TEMP_LOG_BIN/d' \
-            -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@@[Ss][Ee][Ss][Ss][Ii][Oo][Nn]\.[Ss][Qq][Ll]_[Ll][Oo][Gg]_[Bb][Ii][Nn]/d' \
-            -e '/\/\*![0-9]*[[:space:]]*[Ss][Ee][Tt][[:space:]]*[Tt][Ii][Mm][Ee]_[Zz][Oo][Nn][Ee]/d' \
-            -e '/\/\*![0-9]*[[:space:]]*[Ss][Ee][Tt][[:space:]]*[Ss][Ee][Ss][Ss][Ii][Oo][Nn][[:space:]]*[Ss][Qq][Ll]_[Mm][Oo][Dd][Ee]/d' \
-            -e '/\/\*![0-9]*[[:space:]]*[Ss][Ee][Tt].*[Ss][Yy][Ss][Tt][Ee][Mm]_[Vv][Aa][Rr][Ii][Aa][Bb][Ll][Ee][Ss]_[Aa][Dd][Mm][Ii][Nn]/d' \
-            ${source_path}/${source_db_name}
-        print_success "SQL file filtered successfully"
+            # Remove privileged SESSION/GLOBAL assignments and SQL_LOG_BIN toggles
+            sed -i -E \
+                -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]+([Ss][Ee][Ss][Ss][Ii][Oo][Nn]|[Gg][Ll][Oo][Bb][Aa][Ll])[[:space:]]+/d' \
+                -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@@([Ss][Ee][Ss][Ss][Ii][Oo][Nn]|[Gg][Ll][Oo][Bb][Aa][Ll])\./d' \
+                -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@MYSQLDUMP_TEMP_LOG_BIN/d' \
+                -e '/^[[:space:]]*[Ss][Ee][Tt][[:space:]]*@@[Ss][Ee][Ss][Ss][Ii][Oo][Nn]\.[Ss][Qq][Ll]_[Ll][Oo][Gg]_[Bb][Ii][Nn]/d' \
+                -e '/\/\*![0-9]*[[:space:]]*[Ss][Ee][Tt][[:space:]]*[Tt][Ii][Mm][Ee]_[Zz][Oo][Nn][Ee]/d' \
+                -e '/\/\*![0-9]*[[:space:]]*[Ss][Ee][Tt][[:space:]]*[Ss][Ee][Ss][Ss][Ii][Oo][Nn][[:space:]]*[Ss][Qq][Ll]_[Mm][Oo][Dd][Ee]/d' \
+                -e '/\/\*![0-9]*[[:space:]]*[Ss][Ee][Tt].*[Ss][Yy][Ss][Tt][Ee][Mm]_[Vv][Aa][Rr][Ii][Aa][Bb][Ll][Ee][Ss]_[Aa][Dd][Mm][Ii][Nn]/d' \
+                ${source_path}/${source_db_name}
+            print_success "SQL file filtered successfully"
+        else
+            print_info "Skipping SQL filtering (use -f or --filter-sql to enable)"
+        fi
     else
         print_error "Failed to export database"
         exit 1

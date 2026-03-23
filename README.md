@@ -9,6 +9,7 @@ A bash script to push WordPress sites from a SOURCE (LOCAL) server to a REMOTE s
 - 📁 **Custom Exclusions**: Space-delimited exclusion lists via `-e` flag
 - 🔌 **Plugin Installation**: Install multiple plugins with `--install-plugins "plugin1 plugin2"`
 - 🔄 **Database Migration**: Automatic export, transfer, import, and search-replace
+- 🧹 **Optional SQL Sanitizing**: Use `-f` when needed to strip privileged SQL statements before import
 - 🔐 **Modern SSH Keys**: Ed25519 key generation for better security
 - ⚙️ **Multiple Modes**: Interactive, unattended, and files-only modes
 - 🔄 **Table Prefix Sync**: Automatic detection and synchronization of mismatched prefixes
@@ -85,6 +86,7 @@ cd /sites/yourdomain.com
 - `-i, --install-for-user` - Install script to a user's site directory (skips push operation)
 - `-c, --config` - Configure source/remote settings (saves to `~/.wp-push-remote.conf`)
 - `-D, --del-ssh-key` - Delete SSH key pairs for remote user (skips push operation)
+- `-f, --filter-sql` - Filter SQL dump to remove privileged statements before import (slower export)
 - `-p, --install-plugins "LIST"` - Install plugins (space-delimited list)
 - `-r, --remote-cmds "CMD"` - Run custom commands on remote (quote the commands)
 
@@ -135,8 +137,11 @@ Boolean flags (presence = enabled):
 # Delete SSH key pairs
 ./.local/bin/wp-push-remote --del-ssh-key
 
+# Enable SQL filtering for restrictive MySQL destination permissions
+./.local/bin/wp-push-remote -f
+
 # Combined options
-./.local/bin/wp-push-remote --install-plugins "akismet jetpack" -e "uploads cache"
+./.local/bin/wp-push-remote -f --install-plugins "akismet jetpack" -e "uploads cache"
 ```
 
 ## SSH Key Management
@@ -237,12 +242,13 @@ The script manages SSH keys automatically:
 4. **Connection Test**: Verify SSH access (optional in interactive mode)
 5. **Table Prefix Check**: Compare and sync if different (with confirmation)
 6. **Database Export**: Export source database (unless `--files-only`)
-7. **File Sync**: Rsync files to remote with exclusions
-8. **Database Import**: Import database on remote
-9. **Search-Replace**: Update URLs and paths (unless `--no-search-replace`)
-10. **Plugin Installation**: Install plugins if specified via `--install-plugins`
-11. **Cache Flush**: Single cache flush after all operations
-12. **Cleanup**: Remove temporary files
+7. **Optional SQL Filter**: If `-f` is set, strip privileged statements from dump (adds processing time)
+8. **File Sync**: Rsync files to remote with exclusions
+9. **Database Import**: Import database on remote
+10. **Search-Replace**: Update URLs and paths (unless `--no-search-replace`)
+11. **Plugin Installation**: Install plugins if specified via `--install-plugins`
+12. **Cache Flush**: Single cache flush after all operations
+13. **Cleanup**: Remove temporary files
 
 ## Troubleshooting
 
@@ -258,6 +264,16 @@ If you get a password prompt when connecting to the remote:
 Ensure WP-CLI is installed and accessible:
 ```bash
 wp --info
+
+### MySQL Privilege Error During Import (ERROR 1227)
+
+If remote import fails with privilege errors (for example SUPER, SYSTEM_VARIABLES_ADMIN, or SESSION_VARIABLES_ADMIN), run with SQL filtering enabled:
+
+```bash
+./.local/bin/wp-push-remote -f
+```
+
+This strips privileged statements (such as GTID/session/global assignments) from the dump before import. It is disabled by default because it adds extra processing time.
 ```
 
 If not installed, follow the [WP-CLI installation guide](https://wp-cli.org/#installing).
