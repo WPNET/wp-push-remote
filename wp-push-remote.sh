@@ -10,7 +10,7 @@ if ((BASH_VERSINFO[0] < 5)); then
     exit 1
 fi
 
-script_version="2.1.1"
+script_version="2.1.2"
 # Author:       gb@wpnet.nz
 # Description:  Push a site from SOURCE server to REMOTE. Run this script from the SOURCE server.
 # Requirements: WP-CLI installed on source and remote
@@ -1022,6 +1022,11 @@ then
     print_step "EXPORTING database ..."
     if wp db export ${source_path}/${source_db_name} --path="${source_path}"; then
         print_success "Database exported successfully"
+        # Filter out problematic SET statements that require SUPER privileges
+        # This prevents "Access denied" errors when importing to servers with restricted user privileges
+        print_info "Filtering SQL file to remove privileged statements..."
+        sed -i '/^SET SESSION/d; /^SET GLOBAL/d; /^SET @@session\./d; /^SET @@global\./d' ${source_path}/${source_db_name}
+        print_success "SQL file filtered successfully"
     else
         print_error "Failed to export database"
         exit 1
@@ -1122,7 +1127,12 @@ fi
 
 if (( ${files_only} == 0 && ${no_db_import} == 0 )); then
 echo -e "\n${COLOR_BLUE}IMPORTING database ...${COLOR_RESET}"
-wp db import ${remote_path}/${source_db_name} --path="${remote_path}"
+if wp db import ${remote_path}/${source_db_name} --path="${remote_path}"; then
+    echo -e "${COLOR_GREEN}Database imported successfully${COLOR_RESET}"
+else
+    echo -e "${COLOR_RED}[ERROR] Database import failed${COLOR_RESET}"
+    echo -e "${COLOR_YELLOW}[INFO] If you see 'Access denied' errors related to SUPER privileges, this may be due to MySQL user restrictions on the destination server.${COLOR_RESET}"
+fi
 echo -e "\n${COLOR_BLUE}DELETING imported database source file ...${COLOR_RESET}"
 rm -v ${remote_path}/${source_db_name}
 fi
