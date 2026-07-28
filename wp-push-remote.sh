@@ -702,6 +702,12 @@ if [[ $? -ne 0 ]]; then
                 _needs_save=1
                 shift
                 ;;
+            --log)
+                if [[ -z "$2" ]]; then
+                    print_error "--log requires a file path"
+                    exit 1
+                fi
+                log_file="$2"
                 shift 2
                 ;;
             -v|--version)

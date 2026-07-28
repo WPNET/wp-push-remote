@@ -104,7 +104,7 @@ Both scripts use the same options and flags. Configuration is stored separately:
 --log FILE                   Write all output to FILE in addition to terminal
 ```
 
-Options marked `[saved to conf]` are persisted to the conf file on first use and automatically applied on every subsequent run. Edit the conf file directly to remove or change them.
+Options marked `[saved to conf]` are persisted to the conf file and automatically applied on every subsequent run. **Requires an existing conf** — run `--config` first to set up connection details. Edit the conf file directly to remove or change them.
 
 ## Examples
 
