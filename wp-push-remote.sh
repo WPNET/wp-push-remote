@@ -267,6 +267,7 @@ all_tables_with_prefix=1  # use --all-tables-with-prefix option for wp search-re
 filter_sql=0           # filter SQL dump to remove privileged statements (can add processing time)
 dry_run=0              # dry-run mode: show what would happen without executing destructive steps
 backup_db=0            # backup existing destination DB before importing (creates timestamped .sql file)
+_needs_save=0          # set to 1 when a persistable flag is passed via CLI without --config
 log_file=""            # optional path to write a copy of all output
 
 # Load saved configuration if it exists
@@ -632,6 +633,7 @@ if [[ $? -ne 0 ]]; then
                 ;;
             -f|--filter-sql)
                 filter_sql=1
+                _needs_save=1
                 shift
                 ;;
             -e|--exclude)
@@ -642,6 +644,7 @@ if [[ $? -ne 0 ]]; then
                 # Parse space-delimited list and add to excludes array
                 read -ra exclude_items <<< "$2"
                 excludes+=("${exclude_items[@]}")
+                _needs_save=1
                 shift 2
                 ;;
             --search-replace)
@@ -667,6 +670,7 @@ if [[ $? -ne 0 ]]; then
                 fi
                 plugins_to_install="$2"
                 install_plugins=1
+                _needs_save=1
                 shift 2
                 ;;
             --exclude-wpconfig)
@@ -695,14 +699,9 @@ if [[ $? -ne 0 ]]; then
                 ;;
             --backup-db)
                 backup_db=1
+                _needs_save=1
                 shift
                 ;;
-            --log)
-                if [[ -z "$2" ]]; then
-                    print_error "--log requires a file path"
-                    exit 1
-                fi
-                log_file="$2"
                 shift 2
                 ;;
             -v|--version)
@@ -738,12 +737,14 @@ else
                 ;;
             -f|--filter-sql)
                 filter_sql=1
+                _needs_save=1
                 shift
                 ;;
             -e|--exclude)
                 # Parse space-delimited list and add to excludes array
                 read -ra exclude_items <<< "$2"
                 excludes+=("${exclude_items[@]}")
+                _needs_save=1
                 shift 2
                 ;;
             --search-replace)
@@ -765,6 +766,7 @@ else
             -p|--install-plugins)
                 plugins_to_install="$2"
                 install_plugins=1
+                _needs_save=1
                 shift 2
                 ;;
             --exclude-wpconfig)
@@ -793,6 +795,7 @@ else
                 ;;
             --backup-db)
                 backup_db=1
+                _needs_save=1
                 shift
                 ;;
             --log)
@@ -832,6 +835,11 @@ load_config
 # Append any site-specific excludes saved in conf to the main excludes array
 if [[ ${#conf_excludes[@]} -gt 0 ]]; then
     excludes+=("${conf_excludes[@]}")
+fi
+
+# Auto-save conf when a persistable flag (-f, -e, -p, --backup-db) is passed without --config
+if [[ -f "$config_file" && $_needs_save -eq 1 && $prompt_config -eq 0 ]]; then
+    save_config
 fi
 
 # Prompt for configuration if requested
